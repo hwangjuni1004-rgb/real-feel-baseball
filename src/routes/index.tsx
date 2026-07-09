@@ -162,6 +162,19 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
   };
 
+  const changeUserPitcher = (newIdx: number) => {
+    setState((s) => {
+      if (newIdx === s.userPitIdx) return s;
+      const newPitcher = userTeam.rotation[newIdx];
+      return {
+        ...s,
+        userPitIdx: newIdx,
+        userPitchersOut: [...s.userPitchersOut, s.userPitIdx],
+        log: [`🔄 투수 교체: ${newPitcher?.name} 마운드 등판`, ...s.log].slice(0, 30),
+      };
+    });
+  };
+
   const advanceCount = (result: "ball" | "strike" | "foul") => {
     setState((s) => {
       let { balls, strikes, outs } = s;
