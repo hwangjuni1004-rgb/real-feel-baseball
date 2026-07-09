@@ -632,7 +632,11 @@ function BatterView({
           pitch={pitch}
           onSelect={(loc) => !pitch && setGuessLoc(loc)}
           showActual={!!pitch}
+          pitcher={pitcher}
+          batter={batter}
+          swinging={swingAnim}
         />
+
         <div className="space-y-2">
           <div className="text-xs text-white/60">좌측에서 겨냥할 코스를 선택. 공이 미트에 닿는 순간 스윙!</div>
           {!ready ? (
