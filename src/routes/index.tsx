@@ -123,6 +123,8 @@ interface GameState {
   userPitIdx: number;
   cpuPitIdx: number;
   bases: [boolean, boolean, boolean]; // 1, 2, 3
+  userPitchersOut: number[];
+  cpuPitchersOut: number[];
   log: string[];
 }
 
