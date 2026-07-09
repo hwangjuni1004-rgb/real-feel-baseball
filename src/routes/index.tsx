@@ -395,16 +395,21 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 
 // ---------- Pitcher View (user pitches) ----------
 function PitcherView({
-  batter, pitcher, onCount, onHit,
+  batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  rotation: Pitcher[];
+  currentIdx: number;
+  usedIdx: number[];
+  onChangePitcher: (idx: number) => void;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
+  const [showChange, setShowChange] = useState(false);
 
   const throwPitch = () => {
     if (!target) return;
