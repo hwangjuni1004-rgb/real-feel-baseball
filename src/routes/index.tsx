@@ -339,7 +339,11 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               pitcher={pitcher}
               onCount={advanceCount}
               onHit={applyHit}
-              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+              rotation={userTeam.rotation}
+              currentIdx={state.userPitIdx}
+              usedIdx={state.userPitchersOut}
+              onChangePitcher={changeUserPitcher}
+              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
           <Diamond bases={state.bases} />
