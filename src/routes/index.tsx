@@ -659,42 +659,65 @@ function BatterView({
 
 // ---------- Strike Zone ----------
 function StrikeZone({
-  target, pitch, onSelect, showActual,
+  target, pitch, onSelect, showActual, pitcher, batter, swinging,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
   onSelect: (loc: PitchLoc) => void;
   showActual?: boolean;
+  pitcher?: Pitcher;
+  batter?: Batter;
+  swinging?: boolean;
 }) {
   const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
+  const [windup, setWindup] = useState(false);
 
   useEffect(() => {
-    if (!pitch) { setBallPos(null); return; }
+    if (!pitch) { setBallPos(null); setWindup(false); return; }
+    setWindup(true);
     const anim = () => {
       const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
-      // 곡선 이동: 시작 (2,2)에서 actual까지, break에 따라 살짝 커브
       const startX = 2, startY = 2;
       const endX = pitch.actual.col, endY = pitch.actual.row;
-      // 커브: 중간점에 break x/y 오프셋
       const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
       const x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
       const y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
       const scale = 0.35 + t * 0.9;
       setBallPos({ x, y, scale });
+      if (t > 0.15) setWindup(false);
       if (t < 1) animRef.current = requestAnimationFrame(anim);
     };
     animRef.current = requestAnimationFrame(anim);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [pitch]);
 
+  const batterLeft = batter?.bats === "L";
+
   return (
-    <div className="relative aspect-square bg-gradient-to-b from-emerald-800 to-emerald-950 rounded-lg overflow-hidden border-2 border-white/20">
-      {/* 홈플레이트 원근 */}
-      <div className="absolute inset-x-8 bottom-2 h-12 bg-white/80 rounded-t-[50%]" style={{ clipPath: "polygon(0 100%, 15% 0, 85% 0, 100% 100%)" }} />
+    <div className="relative aspect-square bg-gradient-to-b from-sky-700 via-emerald-800 to-emerald-950 rounded-lg overflow-hidden border-2 border-white/20">
+      {/* 마운드 */}
+      <div className="absolute left-1/2 -translate-x-1/2 top-[8%] w-[45%] h-8 bg-amber-900/60 rounded-[50%] blur-[1px]" />
+      {/* 투수 (뒷모습, 작게) */}
+      {pitcher && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 top-[6%] transition-transform duration-200"
+          style={{ transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${windup ? -8 : 0}deg)` }}
+        >
+          <PitcherSvg throws={pitcher.throws} windup={windup} />
+          <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
+            {pitcher.name}
+          </div>
+        </div>
+      )}
+
+      {/* 홈플레이트 */}
+      <div className="absolute left-1/2 bottom-3 -translate-x-1/2 w-24 h-6 bg-white/90"
+        style={{ clipPath: "polygon(0 0, 100% 0, 85% 100%, 15% 100%)" }} />
+
       {/* 5x5 grid */}
-      <div className="absolute inset-6 grid grid-cols-5 grid-rows-5 gap-0">
+      <div className="absolute inset-6 grid grid-cols-5 grid-rows-5 gap-0 z-10">
         {Array.from({ length: 25 }).map((_, i) => {
           const col = (i % 5) as PitchLoc["col"];
           const row = Math.floor(i / 5) as PitchLoc["row"];
@@ -705,19 +728,125 @@ function StrikeZone({
               key={i}
               onClick={() => onSelect({ col, row })}
               className={`border transition ${
-                isStrike ? "border-yellow-300/60" : "border-white/10"
-              } ${isTarget ? "bg-yellow-300/40" : "hover:bg-white/10"}`}
+                isStrike ? "border-yellow-300/40" : "border-white/5"
+              } ${isTarget ? "bg-yellow-300/50 ring-2 ring-yellow-200" : "hover:bg-white/10"}`}
             />
           );
         })}
       </div>
+
       {/* 스트라이크 존 외곽 강조 */}
-      <div className="absolute pointer-events-none border-2 border-yellow-300/80 rounded-sm"
+      <div className="absolute pointer-events-none border-2 border-yellow-300/90 rounded-sm z-10"
         style={{
           left: `calc(6px + 20% * 1 + 4px)`,
           top: `calc(6px + 20% * 1 + 4px)`,
           width: `calc(60% - 8px)`,
           height: `calc(60% - 8px)`,
+        }}
+      />
+
+      {/* 타자 */}
+      {batter && (
+        <div
+          className={`absolute bottom-1 z-20 transition-transform duration-150 ${batterLeft ? "right-2" : "left-2"}`}
+          style={{ transform: `${swinging ? "rotate(" + (batterLeft ? "-" : "") + "35deg)" : "rotate(0deg)"}` }}
+        >
+          <BatterSvg bats={batter.bats} swinging={!!swinging} />
+          <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
+            {batter.name}
+          </div>
+        </div>
+      )}
+
+      {/* 날아오는 공 */}
+      {ballPos && (
+        <div
+          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none z-30"
+          style={{
+            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+            transform: `translate(-50%, -50%) scale(${ballPos.scale})`,
+            boxShadow: "0 0 20px rgba(255,255,255,0.8)",
+          }}
+        >
+          <div className="absolute inset-0 rounded-full border-2 border-red-500/70" style={{ clipPath: "inset(45% 0 45% 0)" }} />
+        </div>
+      )}
+
+      {pitch && showActual === undefined && (
+        <div className="absolute top-1 left-2 text-[10px] text-white/80 z-30 bg-black/40 px-1 rounded">
+          {pitch.speed}km/h · {pitch.type.name}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PitcherSvg({ throws, windup }: { throws: "L" | "R"; windup: boolean }) {
+  const flip = throws === "L" ? -1 : 1;
+  return (
+    <svg width="46" height="60" viewBox="0 0 46 60" style={{ transform: `scaleX(${flip})` }}>
+      {/* 유니폼 몸통 */}
+      <rect x="15" y="20" width="16" height="22" rx="3" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
+      {/* 바지 */}
+      <rect x="16" y="40" width="6" height="16" fill="#334155" />
+      <rect x="24" y="40" width="6" height="16" fill="#334155" />
+      {/* 신발 */}
+      <rect x="15" y="55" width="8" height="4" rx="1" fill="#0f172a" />
+      <rect x="23" y="55" width="8" height="4" rx="1" fill="#0f172a" />
+      {/* 머리 + 모자 */}
+      <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
+      <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
+      <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+      {/* 던지는 팔 (와인드업 시 뒤로) */}
+      <line x1="31" y1="24" x2={windup ? 42 : 38} y2={windup ? 14 : 32}
+        stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
+      {/* 글러브 팔 */}
+      <line x1="15" y1="26" x2="8" y2="30" stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="6" cy="31" r="3" fill="#78350f" />
+      {/* 공 (와인드업) */}
+      {windup && <circle cx="42" cy="14" r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+    </svg>
+  );
+}
+
+function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolean }) {
+  const flip = bats === "L" ? -1 : 1;
+  return (
+    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})` }}>
+      {/* 다리 */}
+      <rect x="22" y="50" width="6" height="24" fill="#334155" />
+      <rect x="32" y="50" width="6" height="24" fill="#334155" />
+      {/* 신발 */}
+      <rect x="20" y="72" width="10" height="5" rx="1" fill="#0f172a" />
+      <rect x="30" y="72" width="10" height="5" rx="1" fill="#0f172a" />
+      {/* 유니폼 */}
+      <rect x="18" y="26" width="22" height="26" rx="3" fill="#dc2626" stroke="#222" strokeWidth="1" />
+      {/* 등번호 */}
+      <text x="29" y="42" fontSize="10" fill="white" fontWeight="bold" textAnchor="middle">7</text>
+      {/* 머리 + 헬멧 */}
+      <circle cx="29" cy="18" r="7" fill="#f5d5b0" />
+      <path d="M22 16 Q29 6 36 16 L37 19 L21 19 Z" fill="#1e293b" />
+      {/* 팔 + 배트 */}
+      {swinging ? (
+        <>
+          <line x1="40" y1="30" x2="55" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
+          <line x1="18" y1="30" x2="5" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
+          {/* 스윙한 배트 (수평) */}
+          <line x1="55" y1="28" x2="2" y2="20" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <line x1="40" y1="30" x2="46" y2="20" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
+          <line x1="18" y1="30" x2="42" y2="16" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
+          {/* 준비 자세 배트 (위로) */}
+          <line x1="46" y1="20" x2="55" y2="-8" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
         }}
       />
       {/* 날아오는 공 */}
