@@ -101,6 +101,7 @@ export const TEAMS: Team[] = [
       { name: "임찬규", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146), CB(146)] },
       { name: "엘리아스", throws: "L", velo: 151, control: 8, pitches: [FB(151), SL(151), CH(151), CB(151)] },
       { name: "손주영", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
+      { name: "유영찬", throws: "R", velo: 151, control: 8, pitches: [FB(151), SL(151), FK(151)] },
     ],
   },
   {
