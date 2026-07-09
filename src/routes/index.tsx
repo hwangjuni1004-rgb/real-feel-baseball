@@ -144,6 +144,8 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     userPitIdx: 0,
     cpuPitIdx: 0,
     bases: [false, false, false],
+    userPitchersOut: [],
+    cpuPitchersOut: [],
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
 
