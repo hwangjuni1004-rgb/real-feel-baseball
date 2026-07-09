@@ -667,7 +667,7 @@ function StrikeZone({
   showActual?: boolean;
 }) {
   const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
-  const animRef = useRef<number>();
+  const animRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!pitch) { setBallPos(null); return; }
