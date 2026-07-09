@@ -423,7 +423,10 @@ function PitcherView({
           target={target}
           pitch={pitch}
           onSelect={(loc) => !pitch && setTarget(loc)}
+          pitcher={pitcher}
+          batter={batter}
         />
+
         <div className="space-y-2">
           <div className="text-xs text-white/60">구종 선택</div>
           {pitcher.pitches.map((p, i) => (
