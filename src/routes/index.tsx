@@ -847,31 +847,7 @@ function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolea
   );
 }
 
-        }}
-      />
-      {/* 날아오는 공 */}
-      {ballPos && (
-        <div
-          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none transition-none"
-          style={{
-            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
-            transform: `translate(-50%, -50%) scale(${ballPos.scale})`,
-            boxShadow: "0 0 20px rgba(255,255,255,0.6)",
-          }}
-        >
-          <div className="absolute inset-0 rounded-full border-2 border-red-500/60" style={{ clipPath: "inset(45% 0 45% 0)" }} />
-        </div>
-      )}
-      {/* actual 표시 (타자 뷰에서 결과 후) */}
-      {pitch && showActual === undefined && (
-        <div className="absolute top-1 left-2 text-[10px] text-white/70">
-          {pitch.speed}km/h · {pitch.type.name}
-        </div>
-      )}
-    </div>
-  );
-}
+
 
 // ---------- Diamond ----------
 function Diamond({ bases }: { bases: [boolean, boolean, boolean] }) {
