@@ -1,24 +1,801 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { TEAMS, POS_LABEL, type Team, type Batter, type Pitcher, type PitchType } from "@/lib/kbo-data";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "KBO 홈런더비 - 실시간 야구 게임" },
+      { name: "description", content: "KBO 실제 팀·선수 기반의 투타 대결 야구 게임. 구종과 코스, 타이밍을 골라 승부하세요." },
+    ],
+  }),
+  component: Game,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
+// ---------- Types ----------
+type Phase = "team-select" | "playing" | "result";
+type HalfInning = "top" | "bottom";
+type PitchLoc = { col: 0 | 1 | 2 | 3 | 4; row: 0 | 1 | 2 | 3 | 4 }; // 5x5, center 3x3 = strike zone
+type PitchInFlight = {
+  type: PitchType;
+  target: PitchLoc; // 투수 겨냥 위치
+  actual: PitchLoc; // 실제 도달 위치 (제구 오차 + break)
+  speed: number;
+  startedAt: number;
+  duration: number; // ms
+};
+
+// ---------- Helpers ----------
+const rand = (min: number, max: number) => Math.random() * (max - min) + min;
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const inStrikeZone = (loc: PitchLoc) => loc.col >= 1 && loc.col <= 3 && loc.row >= 1 && loc.row <= 3;
+
+// ---------- Component ----------
+function Game() {
+  const [phase, setPhase] = useState<Phase>("team-select");
+  const [userTeam, setUserTeam] = useState<Team | null>(null);
+  const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
+
+  if (phase === "team-select") {
+    return (
+      <TeamSelect
+        onStart={(u, c) => {
+          setUserTeam(u);
+          setCpuTeam(c);
+          setPhase("playing");
+        }}
       />
+    );
+  }
+
+  if (phase === "playing" && userTeam && cpuTeam) {
+    return (
+      <Match
+        userTeam={userTeam}
+        cpuTeam={cpuTeam}
+        onFinish={() => setPhase("team-select")}
+      />
+    );
+  }
+  return null;
+}
+
+// ---------- Team Select ----------
+function TeamSelect({ onStart }: { onStart: (u: Team, c: Team) => void }) {
+  const [user, setUser] = useState<Team | null>(null);
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white px-4 py-10">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-10">
+          <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs tracking-widest mb-3">KBO 2025</div>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight">홈런 더비 나인</h1>
+          <p className="mt-2 text-white/70">팀을 선택하세요. 상대는 랜덤으로 매칭됩니다.</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {TEAMS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setUser(t)}
+              className={`rounded-xl p-4 text-left transition-all border-2 ${
+                user?.id === t.id ? "scale-[1.02] shadow-2xl" : "border-transparent hover:scale-[1.01]"
+              }`}
+              style={{
+                backgroundColor: t.color,
+                borderColor: user?.id === t.id ? t.accent : "transparent",
+              }}
+            >
+              <div className="text-xs font-mono opacity-80">{t.short}</div>
+              <div className="text-lg font-bold mt-1">{t.name}</div>
+              <div className="text-xs opacity-80 mt-2">투수 {t.rotation.length}명 · 타자 {t.lineup.length}명</div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-8 flex justify-center">
+          <button
+            disabled={!user}
+            onClick={() => {
+              if (!user) return;
+              const others = TEAMS.filter((t) => t.id !== user.id);
+              const cpu = others[Math.floor(Math.random() * others.length)];
+              onStart(user, cpu);
+            }}
+            className="px-8 py-3 rounded-lg bg-yellow-400 text-black font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
+          >
+            경기 시작 →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
+
+// ---------- Match ----------
+interface GameState {
+  inning: number;
+  half: HalfInning;
+  outs: number;
+  balls: number;
+  strikes: number;
+  scoreUser: number;
+  scoreCpu: number;
+  userBatIdx: number;
+  cpuBatIdx: number;
+  userPitIdx: number;
+  cpuPitIdx: number;
+  bases: [boolean, boolean, boolean]; // 1, 2, 3
+  log: string[];
+}
+
+const INNINGS = 3;
+
+function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team; onFinish: () => void }) {
+  const [state, setState] = useState<GameState>({
+    inning: 1,
+    half: "top",
+    outs: 0,
+    balls: 0,
+    strikes: 0,
+    scoreUser: 0,
+    scoreCpu: 0,
+    userBatIdx: 0,
+    cpuBatIdx: 0,
+    userPitIdx: 0,
+    cpuPitIdx: 0,
+    bases: [false, false, false],
+    log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
+  });
+
+  // user is home team (bat bottom). half=top => cpu bats, user pitches. half=bottom => user bats, cpu pitches.
+  const userBats = state.half === "bottom";
+  const battingTeam = userBats ? userTeam : cpuTeam;
+  const pitchingTeam = userBats ? cpuTeam : userTeam;
+  const batter = battingTeam.lineup[(userBats ? state.userBatIdx : state.cpuBatIdx) % battingTeam.lineup.length];
+  const pitcher = pitchingTeam.rotation[(userBats ? state.cpuPitIdx : state.userPitIdx) % pitchingTeam.rotation.length];
+
+  const gameOver = state.inning > INNINGS && state.half === "top";
+
+  const appendLog = (msg: string) => {
+    setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
+  };
+
+  const advanceCount = (result: "ball" | "strike" | "foul") => {
+    setState((s) => {
+      let { balls, strikes, outs } = s;
+      let bases = [...s.bases] as [boolean, boolean, boolean];
+      let scoreUser = s.scoreUser;
+      let scoreCpu = s.scoreCpu;
+      let userBatIdx = s.userBatIdx;
+      let cpuBatIdx = s.cpuBatIdx;
+      let inning = s.inning;
+      let half = s.half;
+      let log = s.log;
+
+      if (result === "ball") {
+        balls++;
+        if (balls >= 4) {
+          log = [`🚶 ${batter.name} 볼넷 출루`, ...log];
+          const walkResult = pushRunner(bases);
+          bases = walkResult.bases;
+          if (walkResult.scored) {
+            if (userBats) scoreUser++;
+            else scoreCpu++;
+            log = [`🏃 득점! (${walkResult.scored}점)`, ...log];
+          }
+          if (userBats) userBatIdx++;
+          else cpuBatIdx++;
+          balls = 0;
+          strikes = 0;
+        }
+      } else if (result === "strike") {
+        strikes++;
+        if (strikes >= 3) {
+          outs++;
+          log = [`❌ ${batter.name} 삼진 아웃 (${outs}아웃)`, ...log];
+          if (userBats) userBatIdx++;
+          else cpuBatIdx++;
+          balls = 0;
+          strikes = 0;
+        }
+      } else if (result === "foul") {
+        if (strikes < 2) strikes++;
+      }
+
+      if (outs >= 3) {
+        outs = 0;
+        balls = 0;
+        strikes = 0;
+        bases = [false, false, false];
+        if (half === "top") half = "bottom";
+        else {
+          half = "top";
+          inning++;
+        }
+        log = [`━━ ${inning}회 ${half === "top" ? "초" : "말"} ━━`, ...log];
+      }
+
+      return { ...s, balls, strikes, outs, bases, scoreUser, scoreCpu, userBatIdx, cpuBatIdx, inning, half, log };
+    });
+  };
+
+  const applyHit = (kind: "single" | "double" | "triple" | "homer" | "out" | "foul") => {
+    if (kind === "foul") {
+      advanceCount("foul");
+      return;
+    }
+    setState((s) => {
+      let bases = [...s.bases] as [boolean, boolean, boolean];
+      let scoreUser = s.scoreUser;
+      let scoreCpu = s.scoreCpu;
+      let outs = s.outs;
+      let userBatIdx = s.userBatIdx;
+      let cpuBatIdx = s.cpuBatIdx;
+      let inning = s.inning;
+      let half = s.half;
+      let log = s.log;
+
+      const scoreFn = (n: number) => {
+        if (userBats) scoreUser += n;
+        else scoreCpu += n;
+      };
+
+      if (kind === "out") {
+        outs++;
+        log = [`⚾ ${batter.name} 범타 아웃 (${outs}아웃)`, ...log];
+      } else {
+        const adv = kind === "single" ? 1 : kind === "double" ? 2 : kind === "triple" ? 3 : 4;
+        let runs = 0;
+        // 주자 이동
+        const oldBases = [...bases];
+        bases = [false, false, false];
+        for (let i = 2; i >= 0; i--) {
+          if (oldBases[i]) {
+            const newPos = i + adv;
+            if (newPos >= 3) runs++;
+            else bases[newPos] = true;
+          }
+        }
+        // 타자 진루
+        if (adv >= 4) runs++;
+        else bases[adv - 1] = true;
+        scoreFn(runs);
+        const label = kind === "single" ? "안타" : kind === "double" ? "2루타" : kind === "triple" ? "3루타" : "🎉 홈런!";
+        log = [`💥 ${batter.name} ${label}${runs > 0 ? ` (+${runs}점)` : ""}`, ...log];
+      }
+
+      if (userBats) userBatIdx++;
+      else cpuBatIdx++;
+
+      let balls = 0;
+      let strikes = 0;
+
+      if (outs >= 3) {
+        outs = 0;
+        bases = [false, false, false];
+        if (half === "top") half = "bottom";
+        else {
+          half = "top";
+          inning++;
+        }
+        log = [`━━ ${inning}회 ${half === "top" ? "초" : "말"} ━━`, ...log];
+      }
+
+      return { ...s, bases, scoreUser, scoreCpu, outs, balls, strikes, userBatIdx, cpuBatIdx, inning, half, log };
+    });
+  };
+
+  if (gameOver) {
+    return <Result userTeam={userTeam} cpuTeam={cpuTeam} scoreUser={state.scoreUser} scoreCpu={state.scoreCpu} onFinish={onFinish} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-950 to-stone-950 text-white">
+      {/* Scoreboard */}
+      <div className="bg-black/60 backdrop-blur px-4 py-3 border-b border-white/10 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <TeamBadge team={cpuTeam} score={state.scoreCpu} active={state.half === "top"} />
+            <div className="text-white/40 text-sm">VS</div>
+            <TeamBadge team={userTeam} score={state.scoreUser} active={state.half === "bottom"} />
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-white/60">{state.inning}회 {state.half === "top" ? "초" : "말"}</div>
+            <div className="text-sm font-mono">
+              {state.outs}아웃 · B{state.balls} S{state.strikes}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto grid md:grid-cols-[1fr_280px] gap-6 p-4 md:p-6">
+        <div>
+          {userBats ? (
+            <BatterView
+              batter={batter}
+              pitcher={pitcher}
+              onCount={advanceCount}
+              onHit={applyHit}
+              key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+            />
+          ) : (
+            <PitcherView
+              batter={batter}
+              pitcher={pitcher}
+              onCount={advanceCount}
+              onHit={applyHit}
+              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+            />
+          )}
+          <Diamond bases={state.bases} />
+        </div>
+        <aside className="space-y-4">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+            <div className="text-xs text-white/60 mb-2">현재 타석</div>
+            <div className="font-bold text-lg">{batter.name}</div>
+            <div className="text-xs text-white/70">{POS_LABEL[batter.pos]} · {batter.bats === "L" ? "좌타" : batter.bats === "R" ? "우타" : "스위치"}</div>
+            <div className="mt-2 flex gap-3 text-xs">
+              <span>파워 {batter.power}</span>
+              <span>정확 {batter.contact}</span>
+            </div>
+          </div>
+          <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+            <div className="text-xs text-white/60 mb-2">투수</div>
+            <div className="font-bold text-lg">{pitcher.name}</div>
+            <div className="text-xs text-white/70">{pitcher.throws === "L" ? "좌투" : "우투"} · 최고 {pitcher.velo}km/h</div>
+            <div className="mt-2 text-xs">제구 {pitcher.control}</div>
+          </div>
+          <div className="rounded-lg bg-white/5 border border-white/10 p-3 max-h-64 overflow-y-auto">
+            <div className="text-xs text-white/60 mb-2">경기 로그</div>
+            <ul className="text-xs space-y-1">
+              {state.log.map((l, i) => (
+                <li key={i} className={i === 0 ? "text-yellow-300" : "text-white/70"}>{l}</li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function pushRunner(bases: [boolean, boolean, boolean]): { bases: [boolean, boolean, boolean]; scored: number } {
+  const b: [boolean, boolean, boolean] = [true, bases[0], bases[1]];
+  const scored = bases[2] ? 1 : 0;
+  return { bases: b, scored };
+}
+
+function TeamBadge({ team, score, active }: { team: Team; score: number; active: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${active ? "ring-2 ring-yellow-300" : ""}`} style={{ backgroundColor: team.color }}>
+      <span className="font-mono text-xs opacity-80">{team.short}</span>
+      <span className="font-bold text-lg tabular-nums">{score}</span>
+    </div>
+  );
+}
+
+// ---------- Pitcher View (user pitches) ----------
+function PitcherView({
+  batter, pitcher, onCount, onHit,
+}: {
+  batter: Batter; pitcher: Pitcher;
+  onCount: (r: "ball" | "strike" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+}) {
+  const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
+  const [target, setTarget] = useState<PitchLoc | null>(null);
+  const [pitch, setPitch] = useState<PitchInFlight | null>(null);
+  const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
+
+  const throwPitch = () => {
+    if (!target) return;
+    const type = pitcher.pitches[pitchTypeIdx];
+    // 제구 오차: control이 낮을수록 오차 큼
+    const errRange = (10 - pitcher.control) * 0.35;
+    const errX = Math.round(rand(-errRange, errRange));
+    const errY = Math.round(rand(-errRange, errRange));
+    // break는 좌투 미러링
+    const mirror = pitcher.throws === "L" ? -1 : 1;
+    const bx = Math.round(type.break.x * mirror);
+    const by = Math.round(type.break.y);
+    const actual: PitchLoc = {
+      col: clamp(target.col + errX + bx, 0, 4) as PitchLoc["col"],
+      row: clamp(target.row + errY + by, 0, 4) as PitchLoc["row"],
+    };
+    const speed = Math.round(rand(type.speedMin, type.speedMax));
+    setPitch({ type, target, actual, speed, startedAt: Date.now(), duration: 900 });
+    setPhaseMsg("공이 날아갑니다...");
+
+    // CPU 타자 스윙 판정 (약 850ms 후)
+    setTimeout(() => {
+      simulateCpuBatter(actual, batter, onCount, onHit, setPhaseMsg);
+      setPitch(null);
+      setTarget(null);
+    }, 950);
+  };
+
+  return (
+    <div className="rounded-xl bg-emerald-900/40 border border-white/10 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-bold">🥎 투구 - {pitcher.name}</h2>
+        <div className="text-xs text-white/60">{phaseMsg}</div>
+      </div>
+      <div className="grid md:grid-cols-[1fr_180px] gap-4">
+        <StrikeZone
+          target={target}
+          pitch={pitch}
+          onSelect={(loc) => !pitch && setTarget(loc)}
+        />
+        <div className="space-y-2">
+          <div className="text-xs text-white/60">구종 선택</div>
+          {pitcher.pitches.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => !pitch && setPitchTypeIdx(i)}
+              className={`w-full text-left rounded-lg px-3 py-2 text-sm border transition ${
+                pitchTypeIdx === i
+                  ? "bg-yellow-400 text-black border-yellow-300 font-bold"
+                  : "bg-white/5 border-white/10 hover:bg-white/10"
+              }`}
+            >
+              <div>{p.name}</div>
+              <div className="text-xs opacity-70">{p.speedMin}-{p.speedMax}km/h</div>
+            </button>
+          ))}
+          <button
+            onClick={throwPitch}
+            disabled={!target || !!pitch}
+            className="w-full mt-2 py-3 rounded-lg bg-red-500 hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-white"
+          >
+            투구!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function simulateCpuBatter(
+  actual: PitchLoc,
+  batter: Batter,
+  onCount: (r: "ball" | "strike" | "foul") => void,
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void,
+  setMsg: (s: string) => void,
+) {
+  const strike = inStrikeZone(actual);
+  // 스윙 확률
+  const swingBase = strike ? 0.75 : 0.25;
+  const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03, 0.1, 0.95);
+  const swings = Math.random() < swingProb;
+
+  if (!swings) {
+    if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); }
+    else { setMsg("볼"); onCount("ball"); }
+    return;
+  }
+  // 컨택 확률: strike zone일수록, contact 높을수록 높음
+  const contactProb = clamp((strike ? 0.75 : 0.4) + (batter.contact - 6) * 0.04, 0.1, 0.95);
+  if (Math.random() > contactProb) {
+    setMsg("헛스윙!"); onCount("strike"); return;
+  }
+  // 타구 판정
+  const power = batter.power;
+  const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15);
+  if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
+  if (qualityRoll < 0.55) { setMsg("범타 아웃"); onHit("out"); return; }
+  if (qualityRoll < 0.78) { setMsg("안타!"); onHit("single"); return; }
+  if (qualityRoll < 0.9) { setMsg("2루타!"); onHit("double"); return; }
+  if (qualityRoll < 0.96) { setMsg("3루타!"); onHit("triple"); return; }
+  setMsg("홈런!"); onHit("homer");
+}
+
+// ---------- Batter View (user bats) ----------
+function BatterView({
+  batter, pitcher, onCount, onHit,
+}: {
+  batter: Batter; pitcher: Pitcher;
+  onCount: (r: "ball" | "strike" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+}) {
+  const [guessLoc, setGuessLoc] = useState<PitchLoc | null>(null);
+  const [pitch, setPitch] = useState<PitchInFlight | null>(null);
+  const [phaseMsg, setPhaseMsg] = useState<string>("겨냥할 코스를 고르고 준비하세요");
+  const [ready, setReady] = useState(false);
+  const swungRef = useRef(false);
+  const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
+
+  const startPitch = () => {
+    // CPU pitcher chooses pitch + target
+    swungRef.current = false;
+    const type = pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)];
+    // 60% strike, 40% ball 목표
+    const wantStrike = Math.random() < 0.6;
+    const targetCol = (wantStrike ? Math.floor(rand(1, 4)) : Math.random() < 0.5 ? 0 : 4) as PitchLoc["col"];
+    const targetRow = (wantStrike ? Math.floor(rand(1, 4)) : Math.random() < 0.5 ? 0 : 4) as PitchLoc["row"];
+    const target: PitchLoc = { col: targetCol, row: targetRow };
+    const errRange = (10 - pitcher.control) * 0.35;
+    const errX = Math.round(rand(-errRange, errRange));
+    const errY = Math.round(rand(-errRange, errRange));
+    const mirror = pitcher.throws === "L" ? -1 : 1;
+    const actual: PitchLoc = {
+      col: clamp(target.col + errX + Math.round(type.break.x * mirror), 0, 4) as PitchLoc["col"],
+      row: clamp(target.row + errY + Math.round(type.break.y), 0, 4) as PitchLoc["row"],
+    };
+    const speed = Math.round(rand(type.speedMin, type.speedMax));
+    // 빠를수록 duration 짧게
+    const duration = Math.round(1200 - (speed - 130) * 12);
+    const startedAt = Date.now();
+    setPitch({ type, target, actual, speed, startedAt, duration });
+    setReady(true);
+    setPhaseMsg("스윙 타이밍을 맞추세요!");
+    timingWindow.current = {
+      start: startedAt + duration - 220,
+      end: startedAt + duration + 120,
+      ideal: startedAt + duration - 40,
+    };
+
+    setTimeout(() => {
+      if (!swungRef.current) {
+        // 스윙 안함
+        const strike = inStrikeZone(actual);
+        setPhaseMsg(strike ? "루킹 스트라이크!" : "볼");
+        onCount(strike ? "strike" : "ball");
+      }
+      setPitch(null);
+      setReady(false);
+    }, duration + 200);
+  };
+
+  const swing = () => {
+    if (!pitch || swungRef.current) return;
+    swungRef.current = true;
+    const now = Date.now();
+    const w = timingWindow.current!;
+    // 타이밍 판정
+    let timing: "perfect" | "good" | "early" | "late" | "miss";
+    const diff = now - w.ideal;
+    if (Math.abs(diff) < 60) timing = "perfect";
+    else if (Math.abs(diff) < 130) timing = "good";
+    else if (now < w.start) timing = "miss";
+    else if (diff > 0 && now <= w.end) timing = "late";
+    else if (diff < 0) timing = "early";
+    else timing = "miss";
+
+    // 존 예측 정확도
+    const zoneMatch = guessLoc
+      ? Math.max(0, 1 - (Math.abs(guessLoc.col - pitch.actual.col) + Math.abs(guessLoc.row - pitch.actual.row)) / 4)
+      : 0.4;
+
+    const strike = inStrikeZone(pitch.actual);
+
+    if (timing === "miss") {
+      setPhaseMsg("헛스윙!");
+      onCount("strike");
+      return;
+    }
+
+    // contact 확률
+    const contactProb = clamp(
+      (timing === "perfect" ? 0.95 : timing === "good" ? 0.75 : 0.4) *
+      (0.5 + zoneMatch * 0.5) *
+      (strike ? 1 : 0.7),
+      0.05, 0.98,
+    );
+    if (Math.random() > contactProb) {
+      setPhaseMsg("헛스윙!");
+      onCount("strike");
+      return;
+    }
+
+    // 타구 퀄리티
+    let q = Math.random();
+    if (timing === "perfect") q += 0.4;
+    else if (timing === "good") q += 0.15;
+    q += (batter.power - 5) * 0.04;
+    q += zoneMatch * 0.15;
+
+    if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
+    if (q < 0.62) { setPhaseMsg("범타 아웃"); onHit("out"); return; }
+    if (q < 0.82) { setPhaseMsg("안타!"); onHit("single"); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); onHit("double"); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); onHit("triple"); return; }
+    setPhaseMsg("🎉 홈런!"); onHit("homer");
+  };
+
+  // 스페이스바 지원
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (ready) swing();
+        else if (!pitch) startPitch();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pitch]);
+
+  return (
+    <div className="rounded-xl bg-emerald-900/40 border border-white/10 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-bold">🏏 타격 - {batter.name}</h2>
+        <div className="text-xs text-white/60">{phaseMsg}</div>
+      </div>
+      <div className="grid md:grid-cols-[1fr_180px] gap-4">
+        <StrikeZone
+          target={guessLoc}
+          pitch={pitch}
+          onSelect={(loc) => !pitch && setGuessLoc(loc)}
+          showActual={!!pitch}
+        />
+        <div className="space-y-2">
+          <div className="text-xs text-white/60">좌측에서 겨냥할 코스를 선택. 공이 미트에 닿는 순간 스윙!</div>
+          {!ready ? (
+            <button
+              onClick={startPitch}
+              className="w-full py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
+            >
+              투구 요청 (Space)
+            </button>
+          ) : (
+            <button
+              onClick={swing}
+              className="w-full py-6 rounded-lg bg-red-500 hover:bg-red-400 font-black text-white text-xl animate-pulse"
+            >
+              스윙! (Space)
+            </button>
+          )}
+          {pitch && (
+            <div className="rounded-lg bg-black/40 p-2 text-xs">
+              <div className="text-white/60">추정 구종</div>
+              <div className="font-bold">{pitch.type.name}</div>
+              <div className="text-white/70">{pitch.speed}km/h</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Strike Zone ----------
+function StrikeZone({
+  target, pitch, onSelect, showActual,
+}: {
+  target: PitchLoc | null;
+  pitch: PitchInFlight | null;
+  onSelect: (loc: PitchLoc) => void;
+  showActual?: boolean;
+}) {
+  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
+  const animRef = useRef<number>();
+
+  useEffect(() => {
+    if (!pitch) { setBallPos(null); return; }
+    const anim = () => {
+      const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
+      // 곡선 이동: 시작 (2,2)에서 actual까지, break에 따라 살짝 커브
+      const startX = 2, startY = 2;
+      const endX = pitch.actual.col, endY = pitch.actual.row;
+      // 커브: 중간점에 break x/y 오프셋
+      const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
+      const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
+      const x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
+      const y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
+      const scale = 0.35 + t * 0.9;
+      setBallPos({ x, y, scale });
+      if (t < 1) animRef.current = requestAnimationFrame(anim);
+    };
+    animRef.current = requestAnimationFrame(anim);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [pitch]);
+
+  return (
+    <div className="relative aspect-square bg-gradient-to-b from-emerald-800 to-emerald-950 rounded-lg overflow-hidden border-2 border-white/20">
+      {/* 홈플레이트 원근 */}
+      <div className="absolute inset-x-8 bottom-2 h-12 bg-white/80 rounded-t-[50%]" style={{ clipPath: "polygon(0 100%, 15% 0, 85% 0, 100% 100%)" }} />
+      {/* 5x5 grid */}
+      <div className="absolute inset-6 grid grid-cols-5 grid-rows-5 gap-0">
+        {Array.from({ length: 25 }).map((_, i) => {
+          const col = (i % 5) as PitchLoc["col"];
+          const row = Math.floor(i / 5) as PitchLoc["row"];
+          const isStrike = col >= 1 && col <= 3 && row >= 1 && row <= 3;
+          const isTarget = target?.col === col && target?.row === row;
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect({ col, row })}
+              className={`border transition ${
+                isStrike ? "border-yellow-300/60" : "border-white/10"
+              } ${isTarget ? "bg-yellow-300/40" : "hover:bg-white/10"}`}
+            />
+          );
+        })}
+      </div>
+      {/* 스트라이크 존 외곽 강조 */}
+      <div className="absolute pointer-events-none border-2 border-yellow-300/80 rounded-sm"
+        style={{
+          left: `calc(6px + 20% * 1 + 4px)`,
+          top: `calc(6px + 20% * 1 + 4px)`,
+          width: `calc(60% - 8px)`,
+          height: `calc(60% - 8px)`,
+        }}
+      />
+      {/* 날아오는 공 */}
+      {ballPos && (
+        <div
+          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none transition-none"
+          style={{
+            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+            transform: `translate(-50%, -50%) scale(${ballPos.scale})`,
+            boxShadow: "0 0 20px rgba(255,255,255,0.6)",
+          }}
+        >
+          <div className="absolute inset-0 rounded-full border-2 border-red-500/60" style={{ clipPath: "inset(45% 0 45% 0)" }} />
+        </div>
+      )}
+      {/* actual 표시 (타자 뷰에서 결과 후) */}
+      {pitch && showActual === undefined && (
+        <div className="absolute top-1 left-2 text-[10px] text-white/70">
+          {pitch.speed}km/h · {pitch.type.name}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Diamond ----------
+function Diamond({ bases }: { bases: [boolean, boolean, boolean] }) {
+  return (
+    <div className="mt-4 rounded-xl bg-emerald-900/40 border border-white/10 p-4 flex items-center justify-center">
+      <div className="relative w-40 h-40">
+        <div className="absolute inset-0 rotate-45 border-2 border-white/30" />
+        {/* 1루 (오른쪽) */}
+        <div className={`absolute top-1/2 right-0 -translate-y-1/2 w-5 h-5 rotate-45 border-2 ${bases[0] ? "bg-yellow-300 border-yellow-100" : "bg-transparent border-white/50"}`} />
+        {/* 2루 (위) */}
+        <div className={`absolute left-1/2 top-0 -translate-x-1/2 w-5 h-5 rotate-45 border-2 ${bases[1] ? "bg-yellow-300 border-yellow-100" : "bg-transparent border-white/50"}`} />
+        {/* 3루 (왼쪽) */}
+        <div className={`absolute top-1/2 left-0 -translate-y-1/2 w-5 h-5 rotate-45 border-2 ${bases[2] ? "bg-yellow-300 border-yellow-100" : "bg-transparent border-white/50"}`} />
+        {/* 홈 */}
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-5 h-5 rotate-45 border-2 border-white bg-white/40" />
+      </div>
+    </div>
+  );
+}
+
+// ---------- Result ----------
+function Result({ userTeam, cpuTeam, scoreUser, scoreCpu, onFinish }: {
+  userTeam: Team; cpuTeam: Team; scoreUser: number; scoreCpu: number; onFinish: () => void;
+}) {
+  const win = scoreUser > scoreCpu;
+  const tie = scoreUser === scoreCpu;
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-950 to-stone-950 text-white flex items-center justify-center px-4">
+      <div className="max-w-md w-full text-center">
+        <div className="text-6xl mb-4">{tie ? "🤝" : win ? "🏆" : "😢"}</div>
+        <h1 className="text-3xl font-black mb-2">{tie ? "무승부" : win ? "승리!" : "패배"}</h1>
+        <div className="flex items-center justify-center gap-6 mt-6 mb-8">
+          <div className="text-center">
+            <div className="text-xs opacity-70">{cpuTeam.name}</div>
+            <div className="text-4xl font-black tabular-nums">{scoreCpu}</div>
+          </div>
+          <div className="text-white/40">:</div>
+          <div className="text-center">
+            <div className="text-xs opacity-70">{userTeam.name}</div>
+            <div className="text-4xl font-black tabular-nums">{scoreUser}</div>
+          </div>
+        </div>
+        <button
+          onClick={onFinish}
+          className="px-6 py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
+        >
+          다시 경기하기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// unused re-exports silencer
+const _unused = { useMemo };
+void _unused;
