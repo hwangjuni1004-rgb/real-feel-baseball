@@ -551,6 +551,8 @@ function BatterView({
   const swing = () => {
     if (!pitch || swungRef.current) return;
     swungRef.current = true;
+    setSwingAnim(true);
+    setTimeout(() => setSwingAnim(false), 400);
     const now = Date.now();
     const w = timingWindow.current!;
     // 타이밍 판정
