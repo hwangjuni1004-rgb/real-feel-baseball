@@ -504,6 +504,7 @@ function BatterView({
   const [ready, setReady] = useState(false);
   const swungRef = useRef(false);
   const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
+  const [swingAnim, setSwingAnim] = useState(false);
 
   const startPitch = () => {
     // CPU pitcher chooses pitch + target
