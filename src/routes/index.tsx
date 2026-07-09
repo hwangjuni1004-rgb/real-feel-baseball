@@ -796,6 +796,4 @@ function Result({ userTeam, cpuTeam, scoreUser, scoreCpu, onFinish }: {
   );
 }
 
-// unused re-exports silencer
-const _unused = { useMemo };
-void _unused;
+void useMemo;
