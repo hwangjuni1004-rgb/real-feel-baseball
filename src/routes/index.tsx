@@ -123,6 +123,8 @@ interface GameState {
   userPitIdx: number;
   cpuPitIdx: number;
   bases: [boolean, boolean, boolean]; // 1, 2, 3
+  userPitchersOut: number[];
+  cpuPitchersOut: number[];
   log: string[];
 }
 
@@ -142,6 +144,8 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     userPitIdx: 0,
     cpuPitIdx: 0,
     bases: [false, false, false],
+    userPitchersOut: [],
+    cpuPitchersOut: [],
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
 
@@ -156,6 +160,19 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
 
   const appendLog = (msg: string) => {
     setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
+  };
+
+  const changeUserPitcher = (newIdx: number) => {
+    setState((s) => {
+      if (newIdx === s.userPitIdx) return s;
+      const newPitcher = userTeam.rotation[newIdx];
+      return {
+        ...s,
+        userPitIdx: newIdx,
+        userPitchersOut: [...s.userPitchersOut, s.userPitIdx],
+        log: [`🔄 투수 교체: ${newPitcher?.name} 마운드 등판`, ...s.log].slice(0, 30),
+      };
+    });
   };
 
   const advanceCount = (result: "ball" | "strike" | "foul") => {
@@ -322,7 +339,11 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               pitcher={pitcher}
               onCount={advanceCount}
               onHit={applyHit}
-              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+              rotation={userTeam.rotation}
+              currentIdx={state.userPitIdx}
+              usedIdx={state.userPitchersOut}
+              onChangePitcher={changeUserPitcher}
+              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
           <Diamond bases={state.bases} />
@@ -374,16 +395,21 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 
 // ---------- Pitcher View (user pitches) ----------
 function PitcherView({
-  batter, pitcher, onCount, onHit,
+  batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  rotation: Pitcher[];
+  currentIdx: number;
+  usedIdx: number[];
+  onChangePitcher: (idx: number) => void;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
+  const [showChange, setShowChange] = useState(false);
 
   const throwPitch = () => {
     if (!target) return;
@@ -450,6 +476,43 @@ function PitcherView({
           >
             투구!
           </button>
+          <button
+            onClick={() => setShowChange((v) => !v)}
+            disabled={!!pitch}
+            className="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 text-xs font-semibold border border-white/10"
+          >
+            🔄 투수 교체
+          </button>
+          {showChange && (
+            <div className="rounded-lg bg-black/60 border border-white/10 p-2 space-y-1 max-h-56 overflow-y-auto">
+              <div className="text-[10px] text-white/60 px-1 pb-1">불펜 (교체 후 재등판 불가)</div>
+              {rotation.map((p, idx) => {
+                const isCurrent = idx === currentIdx;
+                const isUsed = usedIdx.includes(idx);
+                const disabled = isCurrent || isUsed;
+                return (
+                  <button
+                    key={idx}
+                    disabled={disabled}
+                    onClick={() => {
+                      onChangePitcher(idx);
+                      setShowChange(false);
+                    }}
+                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition ${
+                      isCurrent
+                        ? "bg-yellow-400/20 text-yellow-200 cursor-default"
+                        : isUsed
+                        ? "bg-white/5 text-white/30 line-through cursor-not-allowed"
+                        : "bg-white/10 hover:bg-white/20 text-white"
+                    }`}
+                  >
+                    <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
+                    <div className="opacity-70">{p.throws === "L" ? "좌투" : "우투"} · {p.velo}km/h · 제구 {p.control}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
