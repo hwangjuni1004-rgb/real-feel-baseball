@@ -476,6 +476,43 @@ function PitcherView({
           >
             투구!
           </button>
+          <button
+            onClick={() => setShowChange((v) => !v)}
+            disabled={!!pitch}
+            className="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 text-xs font-semibold border border-white/10"
+          >
+            🔄 투수 교체
+          </button>
+          {showChange && (
+            <div className="rounded-lg bg-black/60 border border-white/10 p-2 space-y-1 max-h-56 overflow-y-auto">
+              <div className="text-[10px] text-white/60 px-1 pb-1">불펜 (교체 후 재등판 불가)</div>
+              {rotation.map((p, idx) => {
+                const isCurrent = idx === currentIdx;
+                const isUsed = usedIdx.includes(idx);
+                const disabled = isCurrent || isUsed;
+                return (
+                  <button
+                    key={idx}
+                    disabled={disabled}
+                    onClick={() => {
+                      onChangePitcher(idx);
+                      setShowChange(false);
+                    }}
+                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition ${
+                      isCurrent
+                        ? "bg-yellow-400/20 text-yellow-200 cursor-default"
+                        : isUsed
+                        ? "bg-white/5 text-white/30 line-through cursor-not-allowed"
+                        : "bg-white/10 hover:bg-white/20 text-white"
+                    }`}
+                  >
+                    <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
+                    <div className="opacity-70">{p.throws === "L" ? "좌투" : "우투"} · {p.velo}km/h · 제구 {p.control}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
