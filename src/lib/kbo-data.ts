@@ -61,6 +61,7 @@ export const TEAMS: Team[] = [
       { name: "양현종", throws: "L", velo: 148, control: 9, pitches: [FB(148), SL(148), CH(148), CB(148)] },
       { name: "네일", throws: "R", velo: 152, control: 8, pitches: [FB(152), TB(152), SL(152), CH(152)] },
       { name: "이의리", throws: "L", velo: 150, control: 7, pitches: [FB(150), SL(150), CH(150)] },
+      { name: "정해영", throws: "R", velo: 149, control: 8, pitches: [FB(149), SL(149), FK(149)] },
     ],
   },
   {
@@ -80,6 +81,7 @@ export const TEAMS: Team[] = [
       { name: "원태인", throws: "R", velo: 150, control: 9, pitches: [FB(150), SL(150), CH(150), CB(150)] },
       { name: "레예스", throws: "R", velo: 153, control: 8, pitches: [FB(153), TB(153), SL(153), FK(153)] },
       { name: "코너", throws: "L", velo: 149, control: 7, pitches: [FB(149), SL(149), CH(149)] },
+      { name: "김재윤", throws: "R", velo: 150, control: 8, pitches: [FB(150), SL(150), FK(150)] },
     ],
   },
   {
@@ -99,6 +101,7 @@ export const TEAMS: Team[] = [
       { name: "임찬규", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146), CB(146)] },
       { name: "엘리아스", throws: "L", velo: 151, control: 8, pitches: [FB(151), SL(151), CH(151), CB(151)] },
       { name: "손주영", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
+      { name: "유영찬", throws: "R", velo: 151, control: 8, pitches: [FB(151), SL(151), FK(151)] },
     ],
   },
   {
@@ -118,6 +121,7 @@ export const TEAMS: Team[] = [
       { name: "곽빈", throws: "R", velo: 152, control: 7, pitches: [FB(152), SL(152), CH(152), CB(152)] },
       { name: "브랜든", throws: "R", velo: 150, control: 8, pitches: [FB(150), TB(150), SL(150), CH(150)] },
       { name: "최원준", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), FK(148)] },
+      { name: "김택연", throws: "R", velo: 153, control: 8, pitches: [FB(153), SL(153), CB(153)] },
     ],
   },
   {
@@ -137,6 +141,7 @@ export const TEAMS: Team[] = [
       { name: "고영표", throws: "R", velo: 145, control: 9, pitches: [FB(145), TB(145), CH(145), SL(145)] },
       { name: "쿠에바스", throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CH(152), CB(152)] },
       { name: "벤자민", throws: "L", velo: 150, control: 8, pitches: [FB(150), SL(150), CB(150)] },
+      { name: "박영현", throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), FK(152)] },
     ],
   },
   {
@@ -156,6 +161,7 @@ export const TEAMS: Team[] = [
       { name: "김광현", throws: "L", velo: 148, control: 8, pitches: [FB(148), SL(148), CB(148), CH(148)] },
       { name: "앤더슨", throws: "L", velo: 150, control: 8, pitches: [FB(150), SL(150), CH(150), CB(150)] },
       { name: "송영진", throws: "R", velo: 149, control: 6, pitches: [FB(149), SL(149), CH(149)] },
+      { name: "조병현", throws: "R", velo: 151, control: 7, pitches: [FB(151), SL(151), FK(151)] },
     ],
   },
   {
@@ -175,6 +181,7 @@ export const TEAMS: Team[] = [
       { name: "박세웅", throws: "R", velo: 149, control: 8, pitches: [FB(149), SL(149), CB(149), FK(149)] },
       { name: "윌커슨", throws: "L", velo: 148, control: 8, pitches: [FB(148), SL(148), CH(148), CB(148)] },
       { name: "반즈", throws: "L", velo: 150, control: 7, pitches: [FB(150), SL(150), CH(150)] },
+      { name: "김원중", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
     ],
   },
   {
@@ -194,6 +201,7 @@ export const TEAMS: Team[] = [
       { name: "류현진", throws: "L", velo: 147, control: 10, pitches: [FB(147), CH(147), CB(147), SL(147)] },
       { name: "문동주", throws: "R", velo: 156, control: 7, pitches: [FB(156), SL(156), CB(156), CH(156)] },
       { name: "폰세", throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CH(152)] },
+      { name: "주현상", throws: "R", velo: 149, control: 9, pitches: [FB(149), SL(149), FK(149)] },
     ],
   },
   {
@@ -213,6 +221,7 @@ export const TEAMS: Team[] = [
       { name: "카일 하트", throws: "L", velo: 150, control: 9, pitches: [FB(150), SL(150), CH(150), CB(150)] },
       { name: "다니엘 카스타노", throws: "L", velo: 149, control: 8, pitches: [FB(149), SL(149), CH(149)] },
       { name: "신민혁", throws: "R", velo: 145, control: 7, pitches: [FB(145), SL(145), CH(145)] },
+      { name: "이용찬", throws: "R", velo: 148, control: 8, pitches: [FB(148), SL(148), FK(148)] },
     ],
   },
   {
@@ -232,6 +241,7 @@ export const TEAMS: Team[] = [
       { name: "안우진", throws: "R", velo: 155, control: 8, pitches: [FB(155), SL(155), CB(155), CH(155)] },
       { name: "헤이수스", throws: "R", velo: 153, control: 7, pitches: [FB(153), SL(153), CH(153)] },
       { name: "하영민", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CB(148)] },
+      { name: "조상우", throws: "R", velo: 154, control: 7, pitches: [FB(154), SL(154), FK(154)] },
     ],
   },
 ];
