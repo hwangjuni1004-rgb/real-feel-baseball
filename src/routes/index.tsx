@@ -214,7 +214,17 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
           strikes = 0;
         }
       } else if (result === "foul") {
-        if (strikes < 2) strikes++;
+        // 파울팁 삼진: 2스트라이크 상황에서 10% 확률로 파울팁 → 삼진
+        if (strikes >= 2 && Math.random() < 0.1) {
+          outs++;
+          log = [`⚡ ${batter.name} 파울팁 삼진! (${outs}아웃)`, ...log];
+          if (userBats) userBatIdx++;
+          else cpuBatIdx++;
+          balls = 0;
+          strikes = 0;
+        } else if (strikes < 2) {
+          strikes++;
+        }
       }
 
       if (outs >= 3) {
