@@ -772,6 +772,14 @@ function BatterView({
               스윙! (Space)
             </button>
           )}
+          {!ready && !pitch && (bases[0] || bases[1]) && (
+            <button
+              onClick={onSteal}
+              className="w-full py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold border border-sky-300/30"
+            >
+              🏃 도루 시도
+            </button>
+          )}
           {pitch && (
             <div className="rounded-lg bg-black/40 p-2 text-xs">
               <div className="text-white/60">추정 구종</div>
