@@ -815,7 +815,13 @@ function BatterView({
     q += zoneMatch * 0.15;
 
     if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
-    if (q < 0.62) { setPhaseMsg("범타 아웃"); onHit("out"); return; }
+    if (q < 0.62) {
+      // 아웃 - 땅볼/플라이 50:50 (perfect 타이밍은 플라이 확률 상승)
+      const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); onHit("fly"); }
+      else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
+      return;
+    }
     if (q < 0.82) { setPhaseMsg("안타!"); onHit("single"); return; }
     if (q < 0.95) { setPhaseMsg("2루타!"); onHit("double"); return; }
     if (q < 1.05) { setPhaseMsg("3루타!"); onHit("triple"); return; }
