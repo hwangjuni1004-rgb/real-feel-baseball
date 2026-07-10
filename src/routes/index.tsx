@@ -485,7 +485,7 @@ function PitcherView({
 
     // CPU 타자 스윙 판정 (약 850ms 후)
     setTimeout(() => {
-      simulateCpuBatter(actual, batter, onCount, onHit, setPhaseMsg);
+      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg);
       setPitch(null);
       setTarget(null);
     }, 950);
