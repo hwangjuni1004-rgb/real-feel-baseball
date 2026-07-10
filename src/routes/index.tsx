@@ -382,6 +382,8 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               pitcher={pitcher}
               onCount={advanceCount}
               onHit={applyHit}
+              bases={state.bases}
+              onSteal={attemptSteal}
               key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
             />
           ) : (
