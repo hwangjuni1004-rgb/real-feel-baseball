@@ -175,6 +175,40 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     });
   };
 
+  const attemptSteal = () => {
+    setState((s) => {
+      const bases = [...s.bases] as [boolean, boolean, boolean];
+      // 1루→2루 우선, 없으면 2루→3루
+      let fromIdx = -1, toIdx = -1;
+      if (bases[0] && !bases[1]) { fromIdx = 0; toIdx = 1; }
+      else if (bases[1] && !bases[2]) { fromIdx = 1; toIdx = 2; }
+      else return s;
+      const success = Math.random() < 0.6;
+      let outs = s.outs;
+      let inning = s.inning, half = s.half, log = s.log;
+      let newBases = bases;
+      if (success) {
+        newBases[fromIdx] = false;
+        newBases[toIdx] = true;
+        log = [`🏃‍♂️ 도루 성공! ${toIdx + 1}루 진루`, ...log];
+      } else {
+        newBases[fromIdx] = false;
+        outs++;
+        log = [`🚨 도루 실패! 태그아웃 (${outs}아웃)`, ...log];
+      }
+      let balls = s.balls, strikes = s.strikes;
+      if (outs >= 3) {
+        outs = 0; balls = 0; strikes = 0;
+        newBases = [false, false, false];
+        if (half === "top") half = "bottom";
+        else { half = "top"; inning++; }
+        log = [`━━ ${inning}회 ${half === "top" ? "초" : "말"} ━━`, ...log];
+      }
+      return { ...s, bases: newBases, outs, balls, strikes, inning, half, log };
+    });
+  };
+
+
   const advanceCount = (result: "ball" | "strike" | "foul") => {
     setState((s) => {
       let { balls, strikes, outs } = s;
