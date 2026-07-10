@@ -37,11 +37,11 @@ export interface Team {
 }
 
 const FB = (v: number): PitchType => ({ name: "포심 패스트볼", speedMin: v - 3, speedMax: v, break: { x: 0, y: 0 } });
-const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 5, speedMax: v - 2, break: { x: 0.4, y: 0.3 } });
-const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 10, speedMax: v - 7, break: { x: -0.7, y: 0.4 } });
-const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 18, speedMax: v - 14, break: { x: -0.3, y: 1.0 } });
-const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 12, speedMax: v - 9, break: { x: 0.3, y: 0.7 } });
-const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 14, speedMax: v - 10, break: { x: 0, y: 1.1 } });
+const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 5, speedMax: v - 2, break: { x: 0.8, y: 0.6 } });
+const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 10, speedMax: v - 7, break: { x: -1.4, y: 0.8 } });
+const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 18, speedMax: v - 14, break: { x: -0.7, y: 2.0 } });
+const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 12, speedMax: v - 9, break: { x: 0.6, y: 1.4 } });
+const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 14, speedMax: v - 10, break: { x: 0, y: 2.2 } });
 
 export const TEAMS: Team[] = [
   {
@@ -107,10 +107,23 @@ export const TEAMS: Team[] = [
       { name: "임찬규", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146), CB(146)] },
       { name: "엘리아스", throws: "L", velo: 151, control: 8, pitches: [FB(151), SL(151), CH(151), CB(151)] },
       { name: "손주영", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
-      { name: "유영찬", throws: "R", velo: 151, control: 8, pitches: [FB(151), SL(151), FK(151)] },
       { name: "최원태", throws: "R", velo: 148, control: 8, pitches: [FB(148), SL(148), CH(148)] },
+      { name: "치리노스", throws: "R", velo: 150, control: 8, pitches: [FB(150), TB(150), SL(150), CH(150)] },
+      { name: "송승기", throws: "L", velo: 146, control: 7, pitches: [FB(146), SL(146), CH(146)] },
+      { name: "김윤식", throws: "L", velo: 147, control: 7, pitches: [FB(147), SL(147), CB(147)] },
+      { name: "이지강", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
+      { name: "유영찬", throws: "R", velo: 151, control: 8, pitches: [FB(151), SL(151), FK(151)] },
       { name: "김진성", throws: "R", velo: 147, control: 8, pitches: [FB(147), SL(147), FK(147)] },
       { name: "함덕주", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
+      { name: "정우영", throws: "R", velo: 152, control: 7, pitches: [FB(152), TB(152), SL(152)] },
+      { name: "박명근", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
+      { name: "백승현", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), CH(150)] },
+      { name: "이우찬", throws: "L", velo: 144, control: 7, pitches: [FB(144), SL(144), CH(144)] },
+      { name: "성동현", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CB(148)] },
+      { name: "김대현", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
+      { name: "진해수", throws: "L", velo: 143, control: 8, pitches: [FB(143), SL(143), CH(143)] },
+      { name: "이상영", throws: "L", velo: 146, control: 7, pitches: [FB(146), SL(146), CH(146)] },
+      { name: "우강훈", throws: "R", velo: 150, control: 6, pitches: [FB(150), SL(150), FK(150)] },
     ],
   },
   {
