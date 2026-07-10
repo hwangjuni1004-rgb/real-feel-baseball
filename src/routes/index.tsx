@@ -314,7 +314,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     });
   };
 
-  const applyHit = (kind: "single" | "double" | "triple" | "homer" | "out" | "foul") => {
+  const applyHit = (kind: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => {
     if (kind === "foul") {
       advanceCount("foul");
       return;
@@ -335,7 +335,18 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
         else scoreCpu += n;
       };
 
-      if (kind === "out") {
+      if (kind === "fly") {
+        // 희생플라이: 3루 주자 있고 2아웃 미만
+        if (bases[2] && outs < 2) {
+          scoreFn(1);
+          bases[2] = false;
+          outs++;
+          log = [`🕊️ ${batter.name} 희생플라이! (+1점, ${outs}아웃)`, ...log];
+        } else {
+          outs++;
+          log = [`🪁 ${batter.name} 플라이 아웃 (${outs}아웃)`, ...log];
+        }
+      } else if (kind === "out") {
         // 1루 주자 있고 2아웃 미만이면 30% 병살
         if (bases[0] && outs < 2 && Math.random() < 0.3) {
           outs += 2;
@@ -343,7 +354,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
           log = [`💀 ${batter.name} 병살타! (${Math.min(outs, 3)}아웃)`, ...log];
         } else {
           outs++;
-          log = [`⚾ ${batter.name} 범타 아웃 (${outs}아웃)`, ...log];
+          log = [`⚾ ${batter.name} 땅볼 아웃 (${outs}아웃)`, ...log];
         }
       } else {
         const adv = kind === "single" ? 1 : kind === "double" ? 2 : kind === "triple" ? 3 : 4;
