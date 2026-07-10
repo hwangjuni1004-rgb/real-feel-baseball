@@ -106,6 +106,10 @@ export const TEAMS: Team[] = [
     ],
     rotation: [
       { name: "임찬규", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146), CB(146)] },
+      { name: "톨허스트", throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CH(152), CB(152)] },
+      { name: "웰스", throws: "R", velo: 150, control: 8, pitches: [FB(150), TB(150), SL(150), CH(150)] },
+      { name: "리오스", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), CH(149), FK(149)] },
+      { name: "김영우", throws: "R", velo: 156, control: 7, pitches: [FB(156), SL(156), FK(156)] },
       { name: "엘리아스", throws: "L", velo: 151, control: 8, pitches: [FB(151), SL(151), CH(151), CB(151)] },
       { name: "손주영", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
       { name: "최원태", throws: "R", velo: 148, control: 8, pitches: [FB(148), SL(148), CH(148)] },
