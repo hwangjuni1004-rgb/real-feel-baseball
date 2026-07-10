@@ -36,12 +36,13 @@ export interface Team {
   rotation: Pitcher[];
 }
 
-const FB = (v: number): PitchType => ({ name: "포심 패스트볼", speedMin: v - 3, speedMax: v, break: { x: 0, y: 0 } });
-const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 5, speedMax: v - 2, break: { x: 0.8, y: 0.6 } });
-const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 10, speedMax: v - 7, break: { x: -1.4, y: 0.8 } });
-const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 18, speedMax: v - 14, break: { x: -0.7, y: 2.0 } });
-const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 12, speedMax: v - 9, break: { x: 0.6, y: 1.4 } });
-const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 14, speedMax: v - 10, break: { x: 0, y: 2.2 } });
+// 구속 편차 확대: 같은 투수 안에서도 구종별 격차 크게
+const FB = (v: number): PitchType => ({ name: "포심 패스트볼", speedMin: v - 4, speedMax: v, break: { x: 0, y: 0 } });
+const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 7, speedMax: v - 1, break: { x: 0.8, y: 0.6 } });
+const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 13, speedMax: v - 6, break: { x: -1.4, y: 0.8 } });
+const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 24, speedMax: v - 14, break: { x: -0.7, y: 2.0 } });
+const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 16, speedMax: v - 8, break: { x: 0.6, y: 1.4 } });
+const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 18, speedMax: v - 9, break: { x: 0, y: 2.2 } });
 
 export const TEAMS: Team[] = [
   {
