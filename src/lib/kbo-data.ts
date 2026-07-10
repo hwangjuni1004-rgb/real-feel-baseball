@@ -36,12 +36,13 @@ export interface Team {
   rotation: Pitcher[];
 }
 
-const FB = (v: number): PitchType => ({ name: "포심 패스트볼", speedMin: v - 3, speedMax: v, break: { x: 0, y: 0 } });
-const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 5, speedMax: v - 2, break: { x: 0.8, y: 0.6 } });
-const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 10, speedMax: v - 7, break: { x: -1.4, y: 0.8 } });
-const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 18, speedMax: v - 14, break: { x: -0.7, y: 2.0 } });
-const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 12, speedMax: v - 9, break: { x: 0.6, y: 1.4 } });
-const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 14, speedMax: v - 10, break: { x: 0, y: 2.2 } });
+// 구속 편차 확대: 같은 투수 안에서도 구종별 격차 크게
+const FB = (v: number): PitchType => ({ name: "포심 패스트볼", speedMin: v - 4, speedMax: v, break: { x: 0, y: 0 } });
+const TB = (v: number): PitchType => ({ name: "투심", speedMin: v - 7, speedMax: v - 1, break: { x: 0.8, y: 0.6 } });
+const SL = (v: number): PitchType => ({ name: "슬라이더", speedMin: v - 13, speedMax: v - 6, break: { x: -1.4, y: 0.8 } });
+const CB = (v: number): PitchType => ({ name: "커브", speedMin: v - 24, speedMax: v - 14, break: { x: -0.7, y: 2.0 } });
+const CH = (v: number): PitchType => ({ name: "체인지업", speedMin: v - 16, speedMax: v - 8, break: { x: 0.6, y: 1.4 } });
+const FK = (v: number): PitchType => ({ name: "포크볼", speedMin: v - 18, speedMax: v - 9, break: { x: 0, y: 2.2 } });
 
 export const TEAMS: Team[] = [
   {
@@ -105,6 +106,10 @@ export const TEAMS: Team[] = [
     ],
     rotation: [
       { name: "임찬규", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146), CB(146)] },
+      { name: "톨허스트", throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CH(152), CB(152)] },
+      { name: "웰스", throws: "R", velo: 150, control: 8, pitches: [FB(150), TB(150), SL(150), CH(150)] },
+      { name: "리오스", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), CH(149), FK(149)] },
+      { name: "김영우", throws: "R", velo: 156, control: 7, pitches: [FB(156), SL(156), FK(156)] },
       { name: "엘리아스", throws: "L", velo: 151, control: 8, pitches: [FB(151), SL(151), CH(151), CB(151)] },
       { name: "손주영", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
       { name: "최원태", throws: "R", velo: 148, control: 8, pitches: [FB(148), SL(148), CH(148)] },

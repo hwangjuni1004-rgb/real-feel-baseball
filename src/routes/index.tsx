@@ -175,15 +175,14 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     });
   };
 
-  const attemptSteal = () => {
+  const attemptSteal = (successRate = 0.6) => {
     setState((s) => {
       const bases = [...s.bases] as [boolean, boolean, boolean];
-      // 1루→2루 우선, 없으면 2루→3루
       let fromIdx = -1, toIdx = -1;
       if (bases[0] && !bases[1]) { fromIdx = 0; toIdx = 1; }
       else if (bases[1] && !bases[2]) { fromIdx = 1; toIdx = 2; }
       else return s;
-      const success = Math.random() < 0.6;
+      const success = Math.random() < successRate;
       let outs = s.outs;
       let inning = s.inning, half = s.half, log = s.log;
       let newBases = bases;
@@ -207,6 +206,43 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
       return { ...s, bases: newBases, outs, balls, strikes, inning, half, log };
     });
   };
+
+  // 견제 - auto=true면 무조건 아웃 (상대 도루 시도 중), 아니면 낮은 확률
+  const attemptPickoff = (auto: boolean): { out: boolean } => {
+    let result = { out: false };
+    setState((s) => {
+      const bases = [...s.bases] as [boolean, boolean, boolean];
+      let targetIdx = -1;
+      if (bases[0]) targetIdx = 0;
+      else if (bases[1]) targetIdx = 1;
+      else if (bases[2]) targetIdx = 2;
+      if (targetIdx === -1) return s;
+      const success = auto ? true : Math.random() < 0.08;
+      let outs = s.outs;
+      let inning = s.inning, half = s.half, log = s.log;
+      let newBases = bases;
+      let balls = s.balls, strikes = s.strikes;
+      if (success) {
+        newBases[targetIdx] = false;
+        outs++;
+        result.out = true;
+        log = [`🎯 견제 아웃! ${targetIdx + 1}루 주자 태그 (${outs}아웃)`, ...log];
+      } else {
+        log = [`🎯 견제구 - 세이프`, ...log];
+      }
+      if (outs >= 3) {
+        outs = 0; balls = 0; strikes = 0;
+        newBases = [false, false, false];
+        if (half === "top") half = "bottom";
+        else { half = "top"; inning++; }
+        log = [`━━ ${inning}회 ${half === "top" ? "초" : "말"} ━━`, ...log];
+      }
+      return { ...s, bases: newBases, outs, balls, strikes, inning, half, log };
+    });
+    return result;
+  };
+
+
 
 
   const advanceCount = (result: "ball" | "strike" | "foul") => {
@@ -278,7 +314,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     });
   };
 
-  const applyHit = (kind: "single" | "double" | "triple" | "homer" | "out" | "foul") => {
+  const applyHit = (kind: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => {
     if (kind === "foul") {
       advanceCount("foul");
       return;
@@ -299,7 +335,18 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
         else scoreCpu += n;
       };
 
-      if (kind === "out") {
+      if (kind === "fly") {
+        // 희생플라이: 3루 주자 있고 2아웃 미만
+        if (bases[2] && outs < 2) {
+          scoreFn(1);
+          bases[2] = false;
+          outs++;
+          log = [`🕊️ ${batter.name} 희생플라이! (+1점, ${outs}아웃)`, ...log];
+        } else {
+          outs++;
+          log = [`🪁 ${batter.name} 플라이 아웃 (${outs}아웃)`, ...log];
+        }
+      } else if (kind === "out") {
         // 1루 주자 있고 2아웃 미만이면 30% 병살
         if (bases[0] && outs < 2 && Math.random() < 0.3) {
           outs += 2;
@@ -307,7 +354,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
           log = [`💀 ${batter.name} 병살타! (${Math.min(outs, 3)}아웃)`, ...log];
         } else {
           outs++;
-          log = [`⚾ ${batter.name} 범타 아웃 (${outs}아웃)`, ...log];
+          log = [`⚾ ${batter.name} 땅볼 아웃 (${outs}아웃)`, ...log];
         }
       } else {
         const adv = kind === "single" ? 1 : kind === "double" ? 2 : kind === "triple" ? 3 : 4;
@@ -396,6 +443,9 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               currentIdx={state.userPitIdx}
               usedIdx={state.userPitchersOut}
               onChangePitcher={changeUserPitcher}
+              bases={state.bases}
+              onPickoff={attemptPickoff}
+              onCpuSteal={() => attemptSteal(0.55)}
               key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
@@ -447,31 +497,53 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 }
 
 // ---------- Pitcher View (user pitches) ----------
+const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
+  bases, onPickoff, onCpuSteal,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   rotation: Pitcher[];
   currentIdx: number;
   usedIdx: number[];
   onChangePitcher: (idx: number) => void;
+  bases: [boolean, boolean, boolean];
+  onPickoff: (auto: boolean) => { out: boolean };
+  onCpuSteal: () => void;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
   const [showChange, setShowChange] = useState(false);
+  const [pickoffs, setPickoffs] = useState(0);
+  // CPU 도루 시도 예약 - 타석 시작 시 결정
+  const cpuStealRef = useRef<boolean>(
+    (bases[0] || bases[1]) && Math.random() < 0.25
+  );
+  const hasRunner = bases[0] || bases[1] || bases[2];
+
+  const doPickoff = () => {
+    if (pitch || pickoffs >= MAX_PICKOFFS || !hasRunner) return;
+    const auto = cpuStealRef.current;
+    const res = onPickoff(auto);
+    setPickoffs((n) => n + 1);
+    if (res.out) {
+      cpuStealRef.current = false;
+      setPhaseMsg(auto ? "🎯 상대 도루 저지! 견제 아웃" : "🎯 견제 아웃!");
+    } else {
+      setPhaseMsg("견제 - 세이프");
+    }
+  };
 
   const throwPitch = () => {
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
-    // 제구 오차: control이 낮을수록 오차 큼
     const errRange = (10 - pitcher.control) * 0.35;
     const errX = Math.round(rand(-errRange, errRange));
     const errY = Math.round(rand(-errRange, errRange));
-    // break는 좌투 미러링
     const mirror = pitcher.throws === "L" ? -1 : 1;
     const bx = Math.round(type.break.x * mirror);
     const by = Math.round(type.break.y);
@@ -483,13 +555,18 @@ function PitcherView({
     setPitch({ type, target, actual, speed, startedAt: Date.now(), duration: 900 });
     setPhaseMsg("공이 날아갑니다...");
 
-    // CPU 타자 스윙 판정 (약 850ms 후)
     setTimeout(() => {
       simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg);
       setPitch(null);
       setTarget(null);
+      // CPU 도루 실행
+      if (cpuStealRef.current) {
+        cpuStealRef.current = false;
+        setTimeout(() => onCpuSteal(), 400);
+      }
     }, 950);
   };
+
 
   return (
     <div className="rounded-xl bg-emerald-900/40 border border-white/10 p-4">
@@ -528,6 +605,13 @@ function PitcherView({
             className="w-full mt-2 py-3 rounded-lg bg-red-500 hover:bg-red-400 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-white"
           >
             투구!
+          </button>
+          <button
+            onClick={doPickoff}
+            disabled={!!pitch || pickoffs >= MAX_PICKOFFS || !hasRunner}
+            className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold border border-orange-300/30 text-white"
+          >
+            🎯 견제 ({pickoffs}/{MAX_PICKOFFS})
           </button>
           <button
             onClick={() => setShowChange((v) => !v)}
@@ -587,12 +671,11 @@ function simulateCpuBatter(
   batter: Batter,
   pitchTypeName: string,
   onCount: (r: "ball" | "strike" | "foul") => void,
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void,
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
 ) {
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  // 스윙 확률 (변화구는 참기 어렵지만 컨택은 떨어짐)
   const swingBase = strike ? 0.75 : 0.28;
   const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3, 0.1, 0.95);
   const swings = Math.random() < swingProb;
@@ -602,16 +685,19 @@ function simulateCpuBatter(
     else { setMsg("볼"); onCount("ball"); }
     return;
   }
-  // 컨택 확률: 구종에 따라 크게 변동 (직구 +0.15, 포크 -0.28 등)
   const contactProb = clamp((strike ? 0.75 : 0.4) + (batter.contact - 6) * 0.04 + typeMod, 0.05, 0.95);
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return;
   }
-  // 타구 판정 (변화구는 정타 확률 낮음)
   const power = batter.power;
   const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
-  if (qualityRoll < 0.55) { setMsg("범타 아웃"); onHit("out"); return; }
+  if (qualityRoll < 0.55) {
+    // 아웃 - 땅볼/플라이 50:50
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
+    else { setMsg("땅볼 아웃"); onHit("out"); }
+    return;
+  }
   if (qualityRoll < 0.78) { setMsg("안타!"); onHit("single"); return; }
   if (qualityRoll < 0.9) { setMsg("2루타!"); onHit("double"); return; }
   if (qualityRoll < 0.96) { setMsg("3루타!"); onHit("triple"); return; }
@@ -624,7 +710,7 @@ function BatterView({
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
 }) {
@@ -729,7 +815,13 @@ function BatterView({
     q += zoneMatch * 0.15;
 
     if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
-    if (q < 0.62) { setPhaseMsg("범타 아웃"); onHit("out"); return; }
+    if (q < 0.62) {
+      // 아웃 - 땅볼/플라이 50:50 (perfect 타이밍은 플라이 확률 상승)
+      const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); onHit("fly"); }
+      else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
+      return;
+    }
     if (q < 0.82) { setPhaseMsg("안타!"); onHit("single"); return; }
     if (q < 0.95) { setPhaseMsg("2루타!"); onHit("double"); return; }
     if (q < 1.05) { setPhaseMsg("3루타!"); onHit("triple"); return; }
