@@ -671,12 +671,11 @@ function simulateCpuBatter(
   batter: Batter,
   pitchTypeName: string,
   onCount: (r: "ball" | "strike" | "foul") => void,
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void,
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
 ) {
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  // 스윙 확률 (변화구는 참기 어렵지만 컨택은 떨어짐)
   const swingBase = strike ? 0.75 : 0.28;
   const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3, 0.1, 0.95);
   const swings = Math.random() < swingProb;
@@ -686,16 +685,19 @@ function simulateCpuBatter(
     else { setMsg("볼"); onCount("ball"); }
     return;
   }
-  // 컨택 확률: 구종에 따라 크게 변동 (직구 +0.15, 포크 -0.28 등)
   const contactProb = clamp((strike ? 0.75 : 0.4) + (batter.contact - 6) * 0.04 + typeMod, 0.05, 0.95);
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return;
   }
-  // 타구 판정 (변화구는 정타 확률 낮음)
   const power = batter.power;
   const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
-  if (qualityRoll < 0.55) { setMsg("범타 아웃"); onHit("out"); return; }
+  if (qualityRoll < 0.55) {
+    // 아웃 - 땅볼/플라이 50:50
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
+    else { setMsg("땅볼 아웃"); onHit("out"); }
+    return;
+  }
   if (qualityRoll < 0.78) { setMsg("안타!"); onHit("single"); return; }
   if (qualityRoll < 0.9) { setMsg("2루타!"); onHit("double"); return; }
   if (qualityRoll < 0.96) { setMsg("3루타!"); onHit("triple"); return; }
