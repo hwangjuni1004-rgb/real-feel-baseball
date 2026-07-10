@@ -607,6 +607,13 @@ function PitcherView({
             투구!
           </button>
           <button
+            onClick={doPickoff}
+            disabled={!!pitch || pickoffs >= MAX_PICKOFFS || !hasRunner}
+            className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold border border-orange-300/30 text-white"
+          >
+            🎯 견제 ({pickoffs}/{MAX_PICKOFFS})
+          </button>
+          <button
             onClick={() => setShowChange((v) => !v)}
             disabled={!!pitch}
             className="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 text-xs font-semibold border border-white/10"
