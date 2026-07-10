@@ -266,8 +266,15 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
       };
 
       if (kind === "out") {
-        outs++;
-        log = [`⚾ ${batter.name} 범타 아웃 (${outs}아웃)`, ...log];
+        // 1루 주자 있고 2아웃 미만이면 30% 병살
+        if (bases[0] && outs < 2 && Math.random() < 0.3) {
+          outs += 2;
+          bases[0] = false;
+          log = [`💀 ${batter.name} 병살타! (${Math.min(outs, 3)}아웃)`, ...log];
+        } else {
+          outs++;
+          log = [`⚾ ${batter.name} 범타 아웃 (${outs}아웃)`, ...log];
+        }
       } else {
         const adv = kind === "single" ? 1 : kind === "double" ? 2 : kind === "triple" ? 3 : 4;
         let runs = 0;
