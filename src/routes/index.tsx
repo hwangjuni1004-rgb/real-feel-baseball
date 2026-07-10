@@ -710,7 +710,7 @@ function BatterView({
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
 }) {
