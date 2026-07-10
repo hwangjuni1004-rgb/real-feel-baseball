@@ -175,15 +175,14 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
     });
   };
 
-  const attemptSteal = () => {
+  const attemptSteal = (successRate = 0.6) => {
     setState((s) => {
       const bases = [...s.bases] as [boolean, boolean, boolean];
-      // 1루→2루 우선, 없으면 2루→3루
       let fromIdx = -1, toIdx = -1;
       if (bases[0] && !bases[1]) { fromIdx = 0; toIdx = 1; }
       else if (bases[1] && !bases[2]) { fromIdx = 1; toIdx = 2; }
       else return s;
-      const success = Math.random() < 0.6;
+      const success = Math.random() < successRate;
       let outs = s.outs;
       let inning = s.inning, half = s.half, log = s.log;
       let newBases = bases;
@@ -207,6 +206,43 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
       return { ...s, bases: newBases, outs, balls, strikes, inning, half, log };
     });
   };
+
+  // 견제 - auto=true면 무조건 아웃 (상대 도루 시도 중), 아니면 낮은 확률
+  const attemptPickoff = (auto: boolean): { out: boolean } => {
+    let result = { out: false };
+    setState((s) => {
+      const bases = [...s.bases] as [boolean, boolean, boolean];
+      let targetIdx = -1;
+      if (bases[0]) targetIdx = 0;
+      else if (bases[1]) targetIdx = 1;
+      else if (bases[2]) targetIdx = 2;
+      if (targetIdx === -1) return s;
+      const success = auto ? true : Math.random() < 0.08;
+      let outs = s.outs;
+      let inning = s.inning, half = s.half, log = s.log;
+      let newBases = bases;
+      let balls = s.balls, strikes = s.strikes;
+      if (success) {
+        newBases[targetIdx] = false;
+        outs++;
+        result.out = true;
+        log = [`🎯 견제 아웃! ${targetIdx + 1}루 주자 태그 (${outs}아웃)`, ...log];
+      } else {
+        log = [`🎯 견제구 - 세이프`, ...log];
+      }
+      if (outs >= 3) {
+        outs = 0; balls = 0; strikes = 0;
+        newBases = [false, false, false];
+        if (half === "top") half = "bottom";
+        else { half = "top"; inning++; }
+        log = [`━━ ${inning}회 ${half === "top" ? "초" : "말"} ━━`, ...log];
+      }
+      return { ...s, bases: newBases, outs, balls, strikes, inning, half, log };
+    });
+    return result;
+  };
+
+
 
 
   const advanceCount = (result: "ball" | "strike" | "foul") => {
