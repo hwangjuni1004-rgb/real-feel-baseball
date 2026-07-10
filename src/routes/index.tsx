@@ -497,31 +497,53 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 }
 
 // ---------- Pitcher View (user pitches) ----------
+const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
+  bases, onPickoff, onCpuSteal,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
-  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "foul") => void;
+  onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   rotation: Pitcher[];
   currentIdx: number;
   usedIdx: number[];
   onChangePitcher: (idx: number) => void;
+  bases: [boolean, boolean, boolean];
+  onPickoff: (auto: boolean) => { out: boolean };
+  onCpuSteal: () => void;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
   const [showChange, setShowChange] = useState(false);
+  const [pickoffs, setPickoffs] = useState(0);
+  // CPU 도루 시도 예약 - 타석 시작 시 결정
+  const cpuStealRef = useRef<boolean>(
+    (bases[0] || bases[1]) && Math.random() < 0.25
+  );
+  const hasRunner = bases[0] || bases[1] || bases[2];
+
+  const doPickoff = () => {
+    if (pitch || pickoffs >= MAX_PICKOFFS || !hasRunner) return;
+    const auto = cpuStealRef.current;
+    const res = onPickoff(auto);
+    setPickoffs((n) => n + 1);
+    if (res.out) {
+      cpuStealRef.current = false;
+      setPhaseMsg(auto ? "🎯 상대 도루 저지! 견제 아웃" : "🎯 견제 아웃!");
+    } else {
+      setPhaseMsg("견제 - 세이프");
+    }
+  };
 
   const throwPitch = () => {
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
-    // 제구 오차: control이 낮을수록 오차 큼
     const errRange = (10 - pitcher.control) * 0.35;
     const errX = Math.round(rand(-errRange, errRange));
     const errY = Math.round(rand(-errRange, errRange));
-    // break는 좌투 미러링
     const mirror = pitcher.throws === "L" ? -1 : 1;
     const bx = Math.round(type.break.x * mirror);
     const by = Math.round(type.break.y);
@@ -533,13 +555,18 @@ function PitcherView({
     setPitch({ type, target, actual, speed, startedAt: Date.now(), duration: 900 });
     setPhaseMsg("공이 날아갑니다...");
 
-    // CPU 타자 스윙 판정 (약 850ms 후)
     setTimeout(() => {
       simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg);
       setPitch(null);
       setTarget(null);
+      // CPU 도루 실행
+      if (cpuStealRef.current) {
+        cpuStealRef.current = false;
+        setTimeout(() => onCpuSteal(), 400);
+      }
     }, 950);
   };
+
 
   return (
     <div className="rounded-xl bg-emerald-900/40 border border-white/10 p-4">
