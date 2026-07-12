@@ -569,7 +569,7 @@ function PitcherView({
     setPhaseMsg("공이 날아갑니다...");
 
     setTimeout(() => {
-      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg, showHit);
+      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg, showHit, triggerSwing);
       setPitch(null);
       setTarget(null);
       // CPU 도루 실행
