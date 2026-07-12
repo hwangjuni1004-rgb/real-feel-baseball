@@ -519,6 +519,11 @@ function PitcherView({
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
   const [showChange, setShowChange] = useState(false);
   const [pickoffs, setPickoffs] = useState(0);
+  const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
+    setHitLabel({ text, kind });
+    setTimeout(() => setHitLabel(null), ms);
+  };
   // CPU 도루 시도 예약 - 타석 시작 시 결정
   const cpuStealRef = useRef<boolean>(
     (bases[0] || bases[1]) && Math.random() < 0.25
