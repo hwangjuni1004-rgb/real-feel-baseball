@@ -688,12 +688,14 @@ function simulateCpuBatter(
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
+  triggerSwing?: () => void,
 ) {
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
   const swingBase = strike ? 0.75 : 0.28;
   const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3, 0.1, 0.95);
   const swings = Math.random() < swingProb;
+  if (swings && triggerSwing) triggerSwing();
 
   if (!swings) {
     if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); }
