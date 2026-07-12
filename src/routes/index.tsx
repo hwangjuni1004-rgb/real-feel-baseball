@@ -721,6 +721,11 @@ function BatterView({
   const swungRef = useRef(false);
   const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
+  const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
+    setHitLabel({ text, kind });
+    setTimeout(() => setHitLabel(null), delayMs);
+  };
 
   const startPitch = () => {
     // CPU pitcher chooses pitch + target
