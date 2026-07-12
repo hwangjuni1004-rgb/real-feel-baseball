@@ -899,7 +899,7 @@ function BatterView({
 
 // ---------- Strike Zone ----------
 function StrikeZone({
-  target, pitch, onSelect, showActual, pitcher, batter, swinging,
+  target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -908,6 +908,7 @@ function StrikeZone({
   pitcher?: Pitcher;
   batter?: Batter;
   swinging?: boolean;
+  hitLabel?: { text: string; kind: "single" | "double" | "triple" | "homer" } | null;
 }) {
   const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
