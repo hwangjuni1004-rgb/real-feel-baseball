@@ -431,6 +431,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onHit={applyHit}
               bases={state.bases}
               onSteal={attemptSteal}
+              battingTeam={userTeam}
               key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
             />
           ) : (
@@ -446,6 +447,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               bases={state.bases}
               onPickoff={attemptPickoff}
               onCpuSteal={() => attemptSteal(0.55)}
+              battingTeam={cpuTeam}
               key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
