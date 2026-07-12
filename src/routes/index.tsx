@@ -1061,49 +1061,96 @@ function StrikeZone({
         </div>
       )}
 
+      {/* 공용 키프레임 */}
+      <style>{`
+        @keyframes zoneBatSwing {
+          0% { transform: translate(-50%, -50%) rotate(-80deg) scale(0.8); opacity: 0; }
+          25% { opacity: 1; }
+          100% { transform: translate(-50%, -50%) rotate(55deg) scale(1.05); opacity: 0; }
+        }
+        @keyframes hitPop {
+          0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+          30% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes homerFlash {
+          0%, 100% { opacity: 0; }
+          30%, 60% { opacity: 1; }
+        }
+        @keyframes homerShake {
+          0%, 100% { transform: translate(0,0); }
+          20% { transform: translate(-4px, 2px); }
+          40% { transform: translate(4px, -2px); }
+          60% { transform: translate(-3px, -2px); }
+          80% { transform: translate(3px, 2px); }
+        }
+        @keyframes contactSpark {
+          0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+          30% { transform: translate(-50%, -50%) scale(1.4); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+        }
+        @keyframes runBases {
+          0%   { left: 50%;  top: 92%; opacity: 0; }
+          8%   { opacity: 1; }
+          25%  { left: 92%;  top: 50%; }
+          50%  { left: 50%;  top: 8%;  }
+          75%  { left: 8%;   top: 50%; }
+          92%  { left: 50%;  top: 92%; opacity: 1; }
+          100% { left: 50%;  top: 92%; opacity: 0; }
+        }
+      `}</style>
+
       {/* 존 위를 휩쓸고 지나가는 배트 */}
       {swinging && (
-        <>
-          <style>{`@keyframes zoneBatSwing {
-            0% { transform: translate(-50%, -50%) rotate(-80deg) scale(0.8); opacity: 0; }
-            25% { opacity: 1; }
-            100% { transform: translate(-50%, -50%) rotate(55deg) scale(1.05); opacity: 0; }
-          }
-          @keyframes hitPop {
-            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
-            30% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
-            70% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-          }
-          @keyframes homerFlash {
-            0%, 100% { opacity: 0; }
-            30%, 60% { opacity: 1; }
-          }
-          @keyframes homerShake {
-            0%, 100% { transform: translate(0,0); }
-            20% { transform: translate(-4px, 2px); }
-            40% { transform: translate(4px, -2px); }
-            60% { transform: translate(-3px, -2px); }
-            80% { transform: translate(3px, 2px); }
-          }`}</style>
-          <svg
-            className="absolute left-1/2 top-1/2 z-[25] pointer-events-none"
-            width="70%" height="70%" viewBox="0 0 200 200"
-            style={{
-              transform: "translate(-50%, -50%)",
-              transformOrigin: "center",
-              animation: "zoneBatSwing 0.38s ease-out forwards",
-            }}
-          >
-            {/* 잔상 */}
-            <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.35)" strokeWidth="14" strokeLinecap="round" />
-            <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.55)" strokeWidth="8" strokeLinecap="round" />
-            {/* 배트 */}
-            <line x1="30" y1="100" x2="175" y2="100" stroke="#78350f" strokeWidth="9" strokeLinecap="round" />
-            <line x1="30" y1="100" x2="175" y2="100" stroke="#a16207" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="30" cy="100" r="6" fill="#111" />
-          </svg>
-        </>
+        <svg
+          className="absolute left-1/2 top-1/2 z-[25] pointer-events-none"
+          width="70%" height="70%" viewBox="0 0 200 200"
+          style={{
+            transform: "translate(-50%, -50%)",
+            transformOrigin: "center",
+            animation: "zoneBatSwing 0.38s ease-out forwards",
+          }}
+        >
+          <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.35)" strokeWidth="14" strokeLinecap="round" />
+          <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.55)" strokeWidth="8" strokeLinecap="round" />
+          <line x1="30" y1="100" x2="175" y2="100" stroke="#78350f" strokeWidth="9" strokeLinecap="round" />
+          <line x1="30" y1="100" x2="175" y2="100" stroke="#a16207" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="30" cy="100" r="6" fill="#111" />
+        </svg>
+      )}
+
+      {/* 컨택 임팩트 스파크 (스윙 + 안타/홈런/파울일 때 공 위치에) */}
+      {swinging && ballPos && (
+        <div
+          className="absolute z-[28] pointer-events-none"
+          style={{
+            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+            animation: "contactSpark 0.5s ease-out forwards",
+          }}
+        >
+          <div className="relative w-16 h-16 -translate-x-1/2 -translate-y-1/2">
+            <div className="absolute inset-0 rounded-full"
+              style={{ background: "radial-gradient(circle, rgba(255,255,255,0.95), rgba(253,224,71,0.7) 40%, transparent 70%)" }} />
+            <div className="absolute inset-0 flex items-center justify-center text-3xl">💥</div>
+          </div>
+        </div>
+      )}
+
+      {/* 홈런 - 팀 유니폼 입은 선수가 베이스를 도는 모션 */}
+      {hitLabel?.kind === "homer" && battingTeam && (
+        <div
+          className="absolute z-[35] pointer-events-none"
+          style={{
+            width: "36px",
+            height: "48px",
+            marginLeft: "-18px",
+            marginTop: "-40px",
+            animation: "runBases 2.6s linear forwards",
+          }}
+        >
+          <RunnerSvg color={battingTeam.color} accent={battingTeam.accent} />
+        </div>
       )}
 
       {/* 결과 텍스트 오버레이 */}
@@ -1115,7 +1162,7 @@ function StrikeZone({
                 className="absolute inset-0"
                 style={{
                   background: "radial-gradient(circle at center, rgba(253,224,71,0.55), rgba(239,68,68,0.35) 40%, transparent 70%)",
-                  animation: "homerFlash 0.9s ease-out",
+                  animation: "homerFlash 1.2s ease-out",
                 }}
               />
               <div className="absolute inset-0" style={{ animation: "homerShake 0.5s ease-in-out" }} />
@@ -1124,7 +1171,7 @@ function StrikeZone({
           <div
             className={`px-5 py-2 rounded-xl font-black tracking-widest whitespace-nowrap ${
               hitLabel.kind === "homer"
-                ? "text-4xl md:text-5xl text-white bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_40px_rgba(253,224,71,0.9)] border-2 border-yellow-200"
+                ? "text-4xl md:text-5xl text-white bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_40px_rgba(253,224,71,0.9)] border-2 border-yellow-200 -translate-y-16"
                 : hitLabel.kind === "triple"
                 ? "text-3xl md:text-4xl text-black bg-yellow-300 shadow-2xl border-2 border-yellow-500"
                 : hitLabel.kind === "double"
