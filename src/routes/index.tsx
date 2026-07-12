@@ -586,6 +586,7 @@ function PitcherView({
           onSelect={(loc) => !pitch && setTarget(loc)}
           pitcher={pitcher}
           batter={batter}
+          hitLabel={hitLabel}
         />
 
         <div className="space-y-2">
