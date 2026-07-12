@@ -827,10 +827,10 @@ function BatterView({
       else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); onHit("single"); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); onHit("double"); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); onHit("triple"); return; }
-    setPhaseMsg("🎉 홈런!"); onHit("homer");
+    if (q < 0.82) { setPhaseMsg("안타!"); showHit("안타", "single", 900); setTimeout(() => onHit("single"), 850); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); showHit("2루타", "double", 1000); setTimeout(() => onHit("double"), 950); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); showHit("3루타", "triple", 1100); setTimeout(() => onHit("triple"), 1050); return; }
+    setPhaseMsg("🎉 홈런!"); showHit("🎉 홈런! 🎉", "homer", 1600); setTimeout(() => onHit("homer"), 1500);
   };
 
   // 스페이스바 지원
