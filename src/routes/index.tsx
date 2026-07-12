@@ -523,9 +523,14 @@ function PitcherView({
   const [showChange, setShowChange] = useState(false);
   const [pickoffs, setPickoffs] = useState(0);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const [swingAnim, setSwingAnim] = useState(false);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), ms);
+  };
+  const triggerSwing = () => {
+    setSwingAnim(true);
+    setTimeout(() => setSwingAnim(false), 420);
   };
   // CPU 도루 시도 예약 - 타석 시작 시 결정
   const cpuStealRef = useRef<boolean>(
