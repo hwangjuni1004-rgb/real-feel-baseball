@@ -678,6 +678,7 @@ function simulateCpuBatter(
   onCount: (r: "ball" | "strike" | "foul") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
+  showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
 ) {
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
@@ -698,15 +699,28 @@ function simulateCpuBatter(
   const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
   if (qualityRoll < 0.55) {
-    // 아웃 - 땅볼/플라이 50:50
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
     else { setMsg("땅볼 아웃"); onHit("out"); }
     return;
   }
-  if (qualityRoll < 0.78) { setMsg("안타!"); onHit("single"); return; }
-  if (qualityRoll < 0.9) { setMsg("2루타!"); onHit("double"); return; }
-  if (qualityRoll < 0.96) { setMsg("3루타!"); onHit("triple"); return; }
-  setMsg("홈런!"); onHit("homer");
+  const doHit = (
+    text: string,
+    kind: "single" | "double" | "triple" | "homer",
+    hitKind: "single" | "double" | "triple" | "homer",
+    ms: number,
+  ) => {
+    setMsg(text);
+    if (showHit) {
+      showHit(text.replace("!", "").replace("🎉", "").trim() || text, kind, ms + 100);
+      setTimeout(() => onHit(hitKind), ms);
+    } else {
+      onHit(hitKind);
+    }
+  };
+  if (qualityRoll < 0.78) { doHit("안타!", "single", "single", 850); return; }
+  if (qualityRoll < 0.9) { doHit("2루타!", "double", "double", 950); return; }
+  if (qualityRoll < 0.96) { doHit("3루타!", "triple", "triple", 1050); return; }
+  doHit("🎉 홈런! 🎉", "homer", "homer", 1500);
 }
 
 // ---------- Batter View (user bats) ----------
