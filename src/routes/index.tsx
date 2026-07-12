@@ -1216,6 +1216,29 @@ function PitcherSvg({ throws, windup }: { throws: "L" | "R"; windup: boolean }) 
   );
 }
 
+function RunnerSvg({ color, accent }: { color: string; accent: string }) {
+  return (
+    <svg width="36" height="48" viewBox="0 0 36 48" style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.6))" }}>
+      {/* 다리 (달리는 자세) */}
+      <line x1="14" y1="30" x2="8" y2="44" stroke="#334155" strokeWidth="4" strokeLinecap="round" />
+      <line x1="22" y1="30" x2="28" y2="42" stroke="#334155" strokeWidth="4" strokeLinecap="round" />
+      {/* 신발 */}
+      <ellipse cx="7" cy="45" rx="4" ry="2" fill="#0f172a" />
+      <ellipse cx="29" cy="43" rx="4" ry="2" fill="#0f172a" />
+      {/* 유니폼 */}
+      <rect x="10" y="14" width="16" height="18" rx="3" fill={color} stroke={accent} strokeWidth="1.5" />
+      {/* 등번호 */}
+      <text x="18" y="26" fontSize="8" fill="#fff" fontWeight="bold" textAnchor="middle">7</text>
+      {/* 팔 (달리는 자세) */}
+      <line x1="10" y1="18" x2="4" y2="24" stroke="#f5d5b0" strokeWidth="3.5" strokeLinecap="round" />
+      <line x1="26" y1="18" x2="32" y2="12" stroke="#f5d5b0" strokeWidth="3.5" strokeLinecap="round" />
+      {/* 머리 + 헬멧 */}
+      <circle cx="18" cy="9" r="5" fill="#f5d5b0" />
+      <path d="M13 8 Q18 2 23 8 L24 11 L12 11 Z" fill={accent === "#000000" ? "#1e293b" : accent} />
+    </svg>
+  );
+}
+
 function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolean }) {
   const flip = bats === "L" ? -1 : 1;
   return (
