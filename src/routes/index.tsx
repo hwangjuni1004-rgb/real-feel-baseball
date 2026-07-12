@@ -502,7 +502,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal,
+  bases, onPickoff, onCpuSteal, battingTeam,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -514,6 +514,7 @@ function PitcherView({
   bases: [boolean, boolean, boolean];
   onPickoff: (auto: boolean) => { out: boolean };
   onCpuSteal: () => void;
+  battingTeam: Team;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
