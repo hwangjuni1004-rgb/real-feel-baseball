@@ -896,6 +896,7 @@ function BatterView({
           batter={batter}
           swinging={swingAnim}
           hitLabel={hitLabel}
+          battingTeam={battingTeam}
         />
 
         <div className="space-y-2">
