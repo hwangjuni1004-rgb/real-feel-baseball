@@ -595,6 +595,8 @@ function PitcherView({
           pitcher={pitcher}
           batter={batter}
           hitLabel={hitLabel}
+          swinging={swingAnim}
+          battingTeam={battingTeam}
         />
 
         <div className="space-y-2">
