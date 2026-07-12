@@ -519,6 +519,11 @@ function PitcherView({
   const [phaseMsg, setPhaseMsg] = useState<string>("구종과 코스를 선택하세요");
   const [showChange, setShowChange] = useState(false);
   const [pickoffs, setPickoffs] = useState(0);
+  const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
+    setHitLabel({ text, kind });
+    setTimeout(() => setHitLabel(null), ms);
+  };
   // CPU 도루 시도 예약 - 타석 시작 시 결정
   const cpuStealRef = useRef<boolean>(
     (bases[0] || bases[1]) && Math.random() < 0.25
@@ -556,7 +561,7 @@ function PitcherView({
     setPhaseMsg("공이 날아갑니다...");
 
     setTimeout(() => {
-      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg);
+      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg, showHit);
       setPitch(null);
       setTarget(null);
       // CPU 도루 실행
@@ -581,6 +586,7 @@ function PitcherView({
           onSelect={(loc) => !pitch && setTarget(loc)}
           pitcher={pitcher}
           batter={batter}
+          hitLabel={hitLabel}
         />
 
         <div className="space-y-2">
@@ -673,6 +679,7 @@ function simulateCpuBatter(
   onCount: (r: "ball" | "strike" | "foul") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
+  showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
 ) {
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
@@ -693,15 +700,28 @@ function simulateCpuBatter(
   const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
   if (qualityRoll < 0.55) {
-    // 아웃 - 땅볼/플라이 50:50
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
     else { setMsg("땅볼 아웃"); onHit("out"); }
     return;
   }
-  if (qualityRoll < 0.78) { setMsg("안타!"); onHit("single"); return; }
-  if (qualityRoll < 0.9) { setMsg("2루타!"); onHit("double"); return; }
-  if (qualityRoll < 0.96) { setMsg("3루타!"); onHit("triple"); return; }
-  setMsg("홈런!"); onHit("homer");
+  const doHit = (
+    text: string,
+    kind: "single" | "double" | "triple" | "homer",
+    hitKind: "single" | "double" | "triple" | "homer",
+    ms: number,
+  ) => {
+    setMsg(text);
+    if (showHit) {
+      showHit(text.replace("!", "").replace("🎉", "").trim() || text, kind, ms + 100);
+      setTimeout(() => onHit(hitKind), ms);
+    } else {
+      onHit(hitKind);
+    }
+  };
+  if (qualityRoll < 0.78) { doHit("안타!", "single", "single", 850); return; }
+  if (qualityRoll < 0.9) { doHit("2루타!", "double", "double", 950); return; }
+  if (qualityRoll < 0.96) { doHit("3루타!", "triple", "triple", 1050); return; }
+  doHit("🎉 홈런! 🎉", "homer", "homer", 1500);
 }
 
 // ---------- Batter View (user bats) ----------
@@ -721,6 +741,11 @@ function BatterView({
   const swungRef = useRef(false);
   const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
+  const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
+    setHitLabel({ text, kind });
+    setTimeout(() => setHitLabel(null), delayMs);
+  };
 
   const startPitch = () => {
     // CPU pitcher chooses pitch + target
@@ -822,10 +847,10 @@ function BatterView({
       else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); onHit("single"); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); onHit("double"); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); onHit("triple"); return; }
-    setPhaseMsg("🎉 홈런!"); onHit("homer");
+    if (q < 0.82) { setPhaseMsg("안타!"); showHit("안타", "single", 900); setTimeout(() => onHit("single"), 850); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); showHit("2루타", "double", 1000); setTimeout(() => onHit("double"), 950); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); showHit("3루타", "triple", 1100); setTimeout(() => onHit("triple"), 1050); return; }
+    setPhaseMsg("🎉 홈런!"); showHit("🎉 홈런! 🎉", "homer", 1600); setTimeout(() => onHit("homer"), 1500);
   };
 
   // 스페이스바 지원
@@ -857,6 +882,7 @@ function BatterView({
           pitcher={pitcher}
           batter={batter}
           swinging={swingAnim}
+          hitLabel={hitLabel}
         />
 
         <div className="space-y-2">
@@ -899,7 +925,7 @@ function BatterView({
 
 // ---------- Strike Zone ----------
 function StrikeZone({
-  target, pitch, onSelect, showActual, pitcher, batter, swinging,
+  target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -908,6 +934,7 @@ function StrikeZone({
   pitcher?: Pitcher;
   batter?: Batter;
   swinging?: boolean;
+  hitLabel?: { text: string; kind: "single" | "double" | "triple" | "homer" } | null;
 }) {
   const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
@@ -1016,6 +1043,83 @@ function StrikeZone({
       {pitch && showActual === undefined && (
         <div className="absolute top-1 left-2 text-[10px] text-white/80 z-30 bg-black/40 px-1 rounded">
           {pitch.speed}km/h · {pitch.type.name}
+        </div>
+      )}
+
+      {/* 존 위를 휩쓸고 지나가는 배트 */}
+      {swinging && (
+        <>
+          <style>{`@keyframes zoneBatSwing {
+            0% { transform: translate(-50%, -50%) rotate(-80deg) scale(0.8); opacity: 0; }
+            25% { opacity: 1; }
+            100% { transform: translate(-50%, -50%) rotate(55deg) scale(1.05); opacity: 0; }
+          }
+          @keyframes hitPop {
+            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+            30% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+            70% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          }
+          @keyframes homerFlash {
+            0%, 100% { opacity: 0; }
+            30%, 60% { opacity: 1; }
+          }
+          @keyframes homerShake {
+            0%, 100% { transform: translate(0,0); }
+            20% { transform: translate(-4px, 2px); }
+            40% { transform: translate(4px, -2px); }
+            60% { transform: translate(-3px, -2px); }
+            80% { transform: translate(3px, 2px); }
+          }`}</style>
+          <svg
+            className="absolute left-1/2 top-1/2 z-[25] pointer-events-none"
+            width="70%" height="70%" viewBox="0 0 200 200"
+            style={{
+              transform: "translate(-50%, -50%)",
+              transformOrigin: "center",
+              animation: "zoneBatSwing 0.38s ease-out forwards",
+            }}
+          >
+            {/* 잔상 */}
+            <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.35)" strokeWidth="14" strokeLinecap="round" />
+            <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.55)" strokeWidth="8" strokeLinecap="round" />
+            {/* 배트 */}
+            <line x1="30" y1="100" x2="175" y2="100" stroke="#78350f" strokeWidth="9" strokeLinecap="round" />
+            <line x1="30" y1="100" x2="175" y2="100" stroke="#a16207" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="30" cy="100" r="6" fill="#111" />
+          </svg>
+        </>
+      )}
+
+      {/* 결과 텍스트 오버레이 */}
+      {hitLabel && (
+        <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center">
+          {hitLabel.kind === "homer" && (
+            <>
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: "radial-gradient(circle at center, rgba(253,224,71,0.55), rgba(239,68,68,0.35) 40%, transparent 70%)",
+                  animation: "homerFlash 0.9s ease-out",
+                }}
+              />
+              <div className="absolute inset-0" style={{ animation: "homerShake 0.5s ease-in-out" }} />
+            </>
+          )}
+          <div
+            className={`px-5 py-2 rounded-xl font-black tracking-widest whitespace-nowrap ${
+              hitLabel.kind === "homer"
+                ? "text-4xl md:text-5xl text-white bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_40px_rgba(253,224,71,0.9)] border-2 border-yellow-200"
+                : hitLabel.kind === "triple"
+                ? "text-3xl md:text-4xl text-black bg-yellow-300 shadow-2xl border-2 border-yellow-500"
+                : hitLabel.kind === "double"
+                ? "text-3xl text-white bg-emerald-500 shadow-2xl border-2 border-emerald-200"
+                : "text-2xl md:text-3xl text-black bg-white shadow-2xl border-2 border-white/70"
+            }`}
+            style={{ animation: "hitPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" }}
+          >
+            {hitLabel.text}
+          </div>
         </div>
       )}
     </div>
