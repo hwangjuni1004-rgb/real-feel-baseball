@@ -654,6 +654,13 @@ function PitcherView({
         />
 
         <div className="space-y-2">
+          {lastPitch && (
+            <div className="rounded-lg bg-black/50 border border-white/10 px-2 py-1.5 text-xs">
+              <div className="text-white/50 text-[10px]">지난 공</div>
+              <div className="font-bold text-yellow-200">{lastPitch.speed}km/h · {lastPitch.name}</div>
+              <div className="text-white/70 text-[10px]">→ {lastPitch.result}</div>
+            </div>
+          )}
           <div className="text-xs text-white/60">구종 선택</div>
           {pitcher.pitches.map((p, i) => (
             <button
