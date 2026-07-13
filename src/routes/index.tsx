@@ -908,6 +908,15 @@ function BatterView({
       : 0.4;
 
     const strike = inStrikeZone(pitch.actual);
+    // 코너 정도 - 존 안이면서 구석일수록 안타 어려움, 한복판이면 쉬움
+    const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
+    const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
+    // 플래툰: 같은 손 매치업은 타자 불리
+    const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
+    // 구속 페널티
+    const speedPen = -clamp((pitch.speed - 145) * 0.006, -0.04, 0.12);
+    // 정확 스탯: 존 밖 컨택 확률
+    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06; // 정확 10 → 0.85, 5 → 0.55
 
     if (timing === "miss") {
       setPhaseMsg("헛스윙!");
@@ -917,9 +926,10 @@ function BatterView({
 
     // contact 확률
     const contactProb = clamp(
-      (timing === "perfect" ? 0.95 : timing === "good" ? 0.75 : 0.4) *
-      (0.5 + zoneMatch * 0.5) *
-      (strike ? 1 : 0.7),
+      (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
+      (0.55 + zoneMatch * 0.45) *
+      (strike ? 1 : chaseSkill) +
+      platoon + speedPen + cornerAdj * 0.3,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) {
@@ -934,6 +944,8 @@ function BatterView({
     else if (timing === "good") q += 0.15;
     q += (batter.power - 5) * 0.04;
     q += zoneMatch * 0.15;
+    q += cornerAdj;
+    q += platoon * 0.5;
 
     if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
     if (q < 0.62) {
