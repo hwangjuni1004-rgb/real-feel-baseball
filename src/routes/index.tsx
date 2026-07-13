@@ -504,7 +504,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal, battingTeam,
+  bases, onPickoff, onCpuSteal, battingTeam, balls, strikes,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -517,6 +517,8 @@ function PitcherView({
   onPickoff: (auto: boolean) => { out: boolean };
   onCpuSteal: () => void;
   battingTeam: Team;
+  balls: number;
+  strikes: number;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
@@ -526,6 +528,9 @@ function PitcherView({
   const [pickoffs, setPickoffs] = useState(0);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
+  const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
+  const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), ms);
@@ -534,7 +539,6 @@ function PitcherView({
     setSwingAnim(true);
     setTimeout(() => setSwingAnim(false), 420);
   };
-  // CPU 도루 시도 예약 - 타석 시작 시 결정
   const cpuStealRef = useRef<boolean>(
     (bases[0] || bases[1]) && Math.random() < 0.25
   );
@@ -553,33 +557,81 @@ function PitcherView({
     }
   };
 
+  // CPU 타자의 구종 예측 (실제 야구 시퀀싱 데이터 기반)
+  // 3-0, 2-0, 3-1: 스트라이크 필요 → 패스트볼 예측
+  // 0-2, 1-2: 헛스윙/유인구 → 변화구 예측
+  // 이전 공이 변화구였고 카운트 유리 → 다시 변화구
+  // 좌투 vs 좌타 : 슬라이더 자주
+  const predictNextPitch = (): string => {
+    const hasFB = pitcher.pitches.find((p) => p.name === "포심 패스트볼");
+    const breaking = pitcher.pitches.filter((p) => p.name === "슬라이더" || p.name === "커브" || p.name === "포크볼");
+    const offspeed = pitcher.pitches.filter((p) => p.name === "체인지업" || p.name === "투심");
+    const lastType = pitchHistoryRef.current[pitchHistoryRef.current.length - 1];
+    // 히터 카운트: 3-0, 3-1, 2-0
+    if ((balls === 3 && strikes <= 1) || (balls === 2 && strikes === 0)) {
+      return hasFB ? "포심 패스트볼" : pitcher.pitches[0].name;
+    }
+    // 투수 카운트: 0-2, 1-2
+    if (strikes === 2 && balls <= 1) {
+      const pool = [...breaking, ...offspeed];
+      if (pool.length) return pool[Math.floor(Math.random() * pool.length)].name;
+    }
+    // 좌투 vs 좌타 매치업: 슬라이더 자주
+    if (pitcher.throws === "L" && batter.bats === "L") {
+      const sl = pitcher.pitches.find((p) => p.name === "슬라이더");
+      if (sl && Math.random() < 0.5) return "슬라이더";
+    }
+    // 연속 같은 구종 회피 (실제 야구 시퀀싱)
+    if (lastType && Math.random() < 0.55) {
+      const others = pitcher.pitches.filter((p) => p.name !== lastType);
+      if (others.length) return others[Math.floor(Math.random() * others.length)].name;
+    }
+    // 기본: 60% 패스트볼
+    if (hasFB && Math.random() < 0.6) return "포심 패스트볼";
+    return pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)].name;
+  };
+
   const throwPitch = () => {
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
-    const errRange = (10 - pitcher.control) * 0.35;
-    const errX = Math.round(rand(-errRange, errRange));
-    const errY = Math.round(rand(-errRange, errRange));
+    // 제구 능력에 따른 오차 - 제구 좋으면 목표 근처 + 코너 유지
+    const controlFactor = (11 - pitcher.control) / 10; // 1(제구10)→0.1, 1(제구1)→1.0
+    const errRange = controlFactor * 1.6;
+    const errX = rand(-errRange, errRange);
+    const errY = rand(-errRange, errRange);
+    // 코너를 겨냥한 경우 제구 좋으면 살짝 코너 쪽으로 더 밀기
+    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
+    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
+    const controlNudge = (pitcher.control - 5) * 0.12;
     const mirror = pitcher.throws === "L" ? -1 : 1;
-    const bx = Math.round(type.break.x * mirror);
-    const by = Math.round(type.break.y);
+    const bx = type.break.x * mirror;
+    const by = type.break.y;
     const actual: PitchLoc = {
-      col: clamp(target.col + errX + bx, 0, 4) as PitchLoc["col"],
-      row: clamp(target.row + errY + by, 0, 4) as PitchLoc["row"],
+      col: clamp(Math.round(target.col + errX + bx + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
+      row: clamp(Math.round(target.row + errY + by + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
     };
     const speed = Math.round(rand(type.speedMin, type.speedMax));
-    setPitch({ type, target, actual, speed, startedAt: Date.now(), duration: 900 });
+    // 구속에 따른 시각적 duration - 확실히 차이 나게
+    const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
+    setPitch({ type, target, actual, speed, startedAt: Date.now(), duration });
     setPhaseMsg("공이 날아갑니다...");
+    const predicted = predictNextPitch();
+    const matched = predicted === type.name;
+    pitchHistoryRef.current.push(type.name);
 
     setTimeout(() => {
-      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg, showHit, triggerSwing);
+      const resultMsg = simulateCpuBatter(
+        actual, batter, type, onCount, onHit, setPhaseMsg, showHit, triggerSwing,
+        { pitcher, predictedMatch: matched, speed },
+      );
+      setLastPitch({ name: type.name, speed, result: resultMsg });
       setPitch(null);
       setTarget(null);
-      // CPU 도루 실행
       if (cpuStealRef.current) {
         cpuStealRef.current = false;
         setTimeout(() => onCpuSteal(), 400);
       }
-    }, 950);
+    }, duration + 80);
   };
 
 
