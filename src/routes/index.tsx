@@ -430,7 +430,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onCount={advanceCount}
               onHit={applyHit}
               bases={state.bases}
-              onSteal={attemptSteal}
+              onSteal={() => attemptSteal(clamp(0.62 + (batter.contact - 6) * 0.04, 0.5, 0.88))}
               battingTeam={userTeam}
               key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
             />
