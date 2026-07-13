@@ -739,36 +739,52 @@ const PITCH_CONTACT_MOD: Record<string, number> = {
 function simulateCpuBatter(
   actual: PitchLoc,
   batter: Batter,
-  pitchTypeName: string,
+  pitchType: PitchType,
   onCount: (r: "ball" | "strike" | "foul") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-) {
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number },
+): string {
+  const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  const swingBase = strike ? 0.75 : 0.28;
-  const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3, 0.1, 0.95);
+  // 코너까지의 거리 (중심 2,2 기준) - 존 안 코너면 안타 확률 하락
+  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2)); // 0(중앙)~2(밖)
+  const cornerPenalty = strike ? (cornerDist === 2 ? -0.15 : cornerDist === 1 ? -0.05 : 0.05) : 0;
+
+  // 플래툰 (좌투 vs 좌타, 우투 vs 우타는 타자 불리)
+  const platoon = opts?.pitcher
+    ? (opts.pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05)
+    : 0;
+  // 예측 성공 시 CPU 타자 유리
+  const predBonus = opts?.predictedMatch ? 0.14 : -0.08;
+  // 구속 - 빠를수록 컨택 하락
+  const speedPenalty = opts ? -clamp((opts.speed - 145) * 0.008, -0.05, 0.15) : 0;
+
+  const swingBase = strike ? 0.78 : 0.30;
+  const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3 + (opts?.predictedMatch ? 0.08 : -0.05), 0.1, 0.95);
   const swings = Math.random() < swingProb;
   if (swings && triggerSwing) triggerSwing();
 
   if (!swings) {
-    if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); }
-    else { setMsg("볼"); onCount("ball"); }
-    return;
+    if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
+    setMsg("볼"); onCount("ball"); return "볼";
   }
-  const contactProb = clamp((strike ? 0.75 : 0.4) + (batter.contact - 6) * 0.04 + typeMod, 0.05, 0.95);
+  const contactProb = clamp(
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4,
+    0.05, 0.96,
+  );
   if (Math.random() > contactProb) {
-    setMsg("헛스윙!"); onCount("strike"); return;
+    setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
-  if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
-  if (qualityRoll < 0.55) {
-    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
-    else { setMsg("땅볼 아웃"); onHit("out"); }
-    return;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty;
+  if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
+  if (qualityRoll < 0.58) {
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
+    setMsg("땅볼 아웃"); onHit("out"); return "땅볼";
   }
   const doHit = (
     text: string,
@@ -784,10 +800,11 @@ function simulateCpuBatter(
       onHit(hitKind);
     }
   };
-  if (qualityRoll < 0.78) { doHit("안타!", "single", "single", 850); return; }
-  if (qualityRoll < 0.9) { doHit("2루타!", "double", "double", 950); return; }
-  if (qualityRoll < 0.96) { doHit("3루타!", "triple", "triple", 1050); return; }
+  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 850); return "안타"; }
+  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 950); return "2루타"; }
+  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 1050); return "3루타"; }
   doHit("🎉 홈런! 🎉", "homer", "homer", 1500);
+  return "홈런";
 }
 
 // ---------- Batter View (user bats) ----------
