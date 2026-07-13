@@ -430,7 +430,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onCount={advanceCount}
               onHit={applyHit}
               bases={state.bases}
-              onSteal={attemptSteal}
+              onSteal={() => attemptSteal(clamp(0.62 + (batter.contact - 6) * 0.04, 0.5, 0.88))}
               battingTeam={userTeam}
               key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
             />
@@ -448,6 +448,8 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onPickoff={attemptPickoff}
               onCpuSteal={() => attemptSteal(0.55)}
               battingTeam={cpuTeam}
+              balls={state.balls}
+              strikes={state.strikes}
               key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
@@ -502,7 +504,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal, battingTeam,
+  bases, onPickoff, onCpuSteal, battingTeam, balls, strikes,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -515,6 +517,8 @@ function PitcherView({
   onPickoff: (auto: boolean) => { out: boolean };
   onCpuSteal: () => void;
   battingTeam: Team;
+  balls: number;
+  strikes: number;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
@@ -524,6 +528,9 @@ function PitcherView({
   const [pickoffs, setPickoffs] = useState(0);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
+  const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
+  const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), ms);
@@ -532,7 +539,6 @@ function PitcherView({
     setSwingAnim(true);
     setTimeout(() => setSwingAnim(false), 420);
   };
-  // CPU 도루 시도 예약 - 타석 시작 시 결정
   const cpuStealRef = useRef<boolean>(
     (bases[0] || bases[1]) && Math.random() < 0.25
   );
@@ -551,33 +557,81 @@ function PitcherView({
     }
   };
 
+  // CPU 타자의 구종 예측 (실제 야구 시퀀싱 데이터 기반)
+  // 3-0, 2-0, 3-1: 스트라이크 필요 → 패스트볼 예측
+  // 0-2, 1-2: 헛스윙/유인구 → 변화구 예측
+  // 이전 공이 변화구였고 카운트 유리 → 다시 변화구
+  // 좌투 vs 좌타 : 슬라이더 자주
+  const predictNextPitch = (): string => {
+    const hasFB = pitcher.pitches.find((p) => p.name === "포심 패스트볼");
+    const breaking = pitcher.pitches.filter((p) => p.name === "슬라이더" || p.name === "커브" || p.name === "포크볼");
+    const offspeed = pitcher.pitches.filter((p) => p.name === "체인지업" || p.name === "투심");
+    const lastType = pitchHistoryRef.current[pitchHistoryRef.current.length - 1];
+    // 히터 카운트: 3-0, 3-1, 2-0
+    if ((balls === 3 && strikes <= 1) || (balls === 2 && strikes === 0)) {
+      return hasFB ? "포심 패스트볼" : pitcher.pitches[0].name;
+    }
+    // 투수 카운트: 0-2, 1-2
+    if (strikes === 2 && balls <= 1) {
+      const pool = [...breaking, ...offspeed];
+      if (pool.length) return pool[Math.floor(Math.random() * pool.length)].name;
+    }
+    // 좌투 vs 좌타 매치업: 슬라이더 자주
+    if (pitcher.throws === "L" && batter.bats === "L") {
+      const sl = pitcher.pitches.find((p) => p.name === "슬라이더");
+      if (sl && Math.random() < 0.5) return "슬라이더";
+    }
+    // 연속 같은 구종 회피 (실제 야구 시퀀싱)
+    if (lastType && Math.random() < 0.55) {
+      const others = pitcher.pitches.filter((p) => p.name !== lastType);
+      if (others.length) return others[Math.floor(Math.random() * others.length)].name;
+    }
+    // 기본: 60% 패스트볼
+    if (hasFB && Math.random() < 0.6) return "포심 패스트볼";
+    return pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)].name;
+  };
+
   const throwPitch = () => {
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
-    const errRange = (10 - pitcher.control) * 0.35;
-    const errX = Math.round(rand(-errRange, errRange));
-    const errY = Math.round(rand(-errRange, errRange));
+    // 제구 능력에 따른 오차 - 제구 좋으면 목표 근처 + 코너 유지
+    const controlFactor = (11 - pitcher.control) / 10; // 1(제구10)→0.1, 1(제구1)→1.0
+    const errRange = controlFactor * 1.6;
+    const errX = rand(-errRange, errRange);
+    const errY = rand(-errRange, errRange);
+    // 코너를 겨냥한 경우 제구 좋으면 살짝 코너 쪽으로 더 밀기
+    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
+    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
+    const controlNudge = (pitcher.control - 5) * 0.12;
     const mirror = pitcher.throws === "L" ? -1 : 1;
-    const bx = Math.round(type.break.x * mirror);
-    const by = Math.round(type.break.y);
+    const bx = type.break.x * mirror;
+    const by = type.break.y;
     const actual: PitchLoc = {
-      col: clamp(target.col + errX + bx, 0, 4) as PitchLoc["col"],
-      row: clamp(target.row + errY + by, 0, 4) as PitchLoc["row"],
+      col: clamp(Math.round(target.col + errX + bx + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
+      row: clamp(Math.round(target.row + errY + by + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
     };
     const speed = Math.round(rand(type.speedMin, type.speedMax));
-    setPitch({ type, target, actual, speed, startedAt: Date.now(), duration: 900 });
+    // 구속에 따른 시각적 duration - 확실히 차이 나게
+    const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
+    setPitch({ type, target, actual, speed, startedAt: Date.now(), duration });
     setPhaseMsg("공이 날아갑니다...");
+    const predicted = predictNextPitch();
+    const matched = predicted === type.name;
+    pitchHistoryRef.current.push(type.name);
 
     setTimeout(() => {
-      simulateCpuBatter(actual, batter, type.name, onCount, onHit, setPhaseMsg, showHit, triggerSwing);
+      const resultMsg = simulateCpuBatter(
+        actual, batter, type, onCount, onHit, setPhaseMsg, showHit, triggerSwing,
+        { pitcher, predictedMatch: matched, speed },
+      );
+      setLastPitch({ name: type.name, speed, result: resultMsg });
       setPitch(null);
       setTarget(null);
-      // CPU 도루 실행
       if (cpuStealRef.current) {
         cpuStealRef.current = false;
         setTimeout(() => onCpuSteal(), 400);
       }
-    }, 950);
+    }, duration + 80);
   };
 
 
@@ -600,6 +654,13 @@ function PitcherView({
         />
 
         <div className="space-y-2">
+          {lastPitch && (
+            <div className="rounded-lg bg-black/50 border border-white/10 px-2 py-1.5 text-xs">
+              <div className="text-white/50 text-[10px]">지난 공</div>
+              <div className="font-bold text-yellow-200">{lastPitch.speed}km/h · {lastPitch.name}</div>
+              <div className="text-white/70 text-[10px]">→ {lastPitch.result}</div>
+            </div>
+          )}
           <div className="text-xs text-white/60">구종 선택</div>
           {pitcher.pitches.map((p, i) => (
             <button
@@ -685,36 +746,52 @@ const PITCH_CONTACT_MOD: Record<string, number> = {
 function simulateCpuBatter(
   actual: PitchLoc,
   batter: Batter,
-  pitchTypeName: string,
+  pitchType: PitchType,
   onCount: (r: "ball" | "strike" | "foul") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-) {
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number },
+): string {
+  const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  const swingBase = strike ? 0.75 : 0.28;
-  const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3, 0.1, 0.95);
+  // 코너까지의 거리 (중심 2,2 기준) - 존 안 코너면 안타 확률 하락
+  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2)); // 0(중앙)~2(밖)
+  const cornerPenalty = strike ? (cornerDist === 2 ? -0.15 : cornerDist === 1 ? -0.05 : 0.05) : 0;
+
+  // 플래툰 (좌투 vs 좌타, 우투 vs 우타는 타자 불리)
+  const platoon = opts?.pitcher
+    ? (opts.pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05)
+    : 0;
+  // 예측 성공 시 CPU 타자 유리
+  const predBonus = opts?.predictedMatch ? 0.14 : -0.08;
+  // 구속 - 빠를수록 컨택 하락
+  const speedPenalty = opts ? -clamp((opts.speed - 145) * 0.008, -0.05, 0.15) : 0;
+
+  const swingBase = strike ? 0.78 : 0.30;
+  const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3 + (opts?.predictedMatch ? 0.08 : -0.05), 0.1, 0.95);
   const swings = Math.random() < swingProb;
   if (swings && triggerSwing) triggerSwing();
 
   if (!swings) {
-    if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); }
-    else { setMsg("볼"); onCount("ball"); }
-    return;
+    if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
+    setMsg("볼"); onCount("ball"); return "볼";
   }
-  const contactProb = clamp((strike ? 0.75 : 0.4) + (batter.contact - 6) * 0.04 + typeMod, 0.05, 0.95);
+  const contactProb = clamp(
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4,
+    0.05, 0.96,
+  );
   if (Math.random() > contactProb) {
-    setMsg("헛스윙!"); onCount("strike"); return;
+    setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  const qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5;
-  if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return; }
-  if (qualityRoll < 0.55) {
-    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); }
-    else { setMsg("땅볼 아웃"); onHit("out"); }
-    return;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty;
+  if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
+  if (qualityRoll < 0.58) {
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
+    setMsg("땅볼 아웃"); onHit("out"); return "땅볼";
   }
   const doHit = (
     text: string,
@@ -730,10 +807,11 @@ function simulateCpuBatter(
       onHit(hitKind);
     }
   };
-  if (qualityRoll < 0.78) { doHit("안타!", "single", "single", 850); return; }
-  if (qualityRoll < 0.9) { doHit("2루타!", "double", "double", 950); return; }
-  if (qualityRoll < 0.96) { doHit("3루타!", "triple", "triple", 1050); return; }
+  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 850); return "안타"; }
+  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 950); return "2루타"; }
+  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 1050); return "3루타"; }
   doHit("🎉 홈런! 🎉", "homer", "homer", 1500);
+  return "홈런";
 }
 
 // ---------- Batter View (user bats) ----------
@@ -761,25 +839,31 @@ function BatterView({
   };
 
   const startPitch = () => {
-    // CPU pitcher chooses pitch + target
     swungRef.current = false;
     const type = pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)];
-    // 60% strike, 40% ball 목표
-    const wantStrike = Math.random() < 0.6;
-    const targetCol = (wantStrike ? Math.floor(rand(1, 4)) : Math.random() < 0.5 ? 0 : 4) as PitchLoc["col"];
-    const targetRow = (wantStrike ? Math.floor(rand(1, 4)) : Math.random() < 0.5 ? 0 : 4) as PitchLoc["row"];
+    // 75% strike, 25% 아슬아슬한 볼 (완전 밖 X). 존 근처로만 빠지게
+    const wantStrike = Math.random() < 0.75;
+    const edgeCol = Math.random() < 0.5 ? 0 : 4;
+    const edgeRow = Math.random() < 0.5 ? 0 : 4;
+    const targetCol = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.7 ? edgeCol : Math.floor(rand(1, 4)))) as PitchLoc["col"];
+    const targetRow = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.5 ? edgeRow : Math.floor(rand(1, 4)))) as PitchLoc["row"];
     const target: PitchLoc = { col: targetCol, row: targetRow };
-    const errRange = (10 - pitcher.control) * 0.35;
-    const errX = Math.round(rand(-errRange, errRange));
-    const errY = Math.round(rand(-errRange, errRange));
+    // 제구 좋으면 오차 작고 코너 유지
+    const controlFactor = (11 - pitcher.control) / 10;
+    const errRange = controlFactor * 1.4;
+    const errX = rand(-errRange, errRange);
+    const errY = rand(-errRange, errRange);
+    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
+    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
+    const controlNudge = (pitcher.control - 5) * 0.12;
     const mirror = pitcher.throws === "L" ? -1 : 1;
     const actual: PitchLoc = {
-      col: clamp(target.col + errX + Math.round(type.break.x * mirror), 0, 4) as PitchLoc["col"],
-      row: clamp(target.row + errY + Math.round(type.break.y), 0, 4) as PitchLoc["row"],
+      col: clamp(Math.round(target.col + errX + type.break.x * mirror + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
+      row: clamp(Math.round(target.row + errY + type.break.y + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
     };
     const speed = Math.round(rand(type.speedMin, type.speedMax));
-    // 빠를수록 duration 짧게
-    const duration = Math.round(1200 - (speed - 130) * 12);
+    // 구속 시각 격차 크게: 140→1220ms, 160→780ms
+    const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
     const startedAt = Date.now();
     setPitch({ type, target, actual, speed, startedAt, duration });
     setReady(true);
@@ -792,7 +876,6 @@ function BatterView({
 
     setTimeout(() => {
       if (!swungRef.current) {
-        // 스윙 안함
         const strike = inStrikeZone(actual);
         setPhaseMsg(strike ? "루킹 스트라이크!" : "볼");
         onCount(strike ? "strike" : "ball");
@@ -825,6 +908,15 @@ function BatterView({
       : 0.4;
 
     const strike = inStrikeZone(pitch.actual);
+    // 코너 정도 - 존 안이면서 구석일수록 안타 어려움, 한복판이면 쉬움
+    const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
+    const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
+    // 플래툰: 같은 손 매치업은 타자 불리
+    const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
+    // 구속 페널티
+    const speedPen = -clamp((pitch.speed - 145) * 0.006, -0.04, 0.12);
+    // 정확 스탯: 존 밖 컨택 확률
+    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06; // 정확 10 → 0.85, 5 → 0.55
 
     if (timing === "miss") {
       setPhaseMsg("헛스윙!");
@@ -834,9 +926,10 @@ function BatterView({
 
     // contact 확률
     const contactProb = clamp(
-      (timing === "perfect" ? 0.95 : timing === "good" ? 0.75 : 0.4) *
-      (0.5 + zoneMatch * 0.5) *
-      (strike ? 1 : 0.7),
+      (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
+      (0.55 + zoneMatch * 0.45) *
+      (strike ? 1 : chaseSkill) +
+      platoon + speedPen + cornerAdj * 0.3,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) {
@@ -851,6 +944,8 @@ function BatterView({
     else if (timing === "good") q += 0.15;
     q += (batter.power - 5) * 0.04;
     q += zoneMatch * 0.15;
+    q += cornerAdj;
+    q += platoon * 0.5;
 
     if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
     if (q < 0.62) {
