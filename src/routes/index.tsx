@@ -448,6 +448,8 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onPickoff={attemptPickoff}
               onCpuSteal={() => attemptSteal(0.55)}
               battingTeam={cpuTeam}
+              balls={state.balls}
+              strikes={state.strikes}
               key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
             />
           )}
