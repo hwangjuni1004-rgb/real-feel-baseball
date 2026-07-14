@@ -256,7 +256,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
       else if (bases[1]) targetIdx = 1;
       else if (bases[2]) targetIdx = 2;
       if (targetIdx === -1) return s;
-      const success = auto ? true : Math.random() < 0.08;
+      const success = auto ? true : Math.random() < 0.025;
       let outs = s.outs;
       let inning = s.inning, half = s.half, log = s.log;
       let newBases = bases;
