@@ -869,13 +869,17 @@ function BatterView({
   const [phaseMsg, setPhaseMsg] = useState<string>("겨냥할 코스를 고르고 준비하세요");
   const [ready, setReady] = useState(false);
   const swungRef = useRef(false);
+  const pendingHitRef = useRef(false); // 홈런/안타 처리 지연 중 다음 투구 방지
+  const [pending, setPending] = useState(false);
   const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), delayMs);
   };
+  const markPending = () => { pendingHitRef.current = true; setPending(true); };
 
   const startPitch = () => {
     swungRef.current = false;
