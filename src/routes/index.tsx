@@ -79,8 +79,9 @@ function Game() {
 }
 
 // ---------- Team Select ----------
-function TeamSelect({ onStart }: { onStart: (u: Team, c: Team) => void }) {
+function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) => void }) {
   const [user, setUser] = useState<Team | null>(null);
+  const [innings, setInnings] = useState<number>(3);
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white px-4 py-10">
       <div className="max-w-5xl mx-auto">
@@ -108,14 +109,30 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team) => void }) {
             </button>
           ))}
         </div>
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-white/60 mr-2">경기 이닝</span>
+            {[3, 6, 9].map((n) => (
+              <button
+                key={n}
+                onClick={() => setInnings(n)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
+                  innings === n
+                    ? "bg-yellow-400 text-black border-yellow-300"
+                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                }`}
+              >
+                {n}이닝
+              </button>
+            ))}
+          </div>
           <button
             disabled={!user}
             onClick={() => {
               if (!user) return;
               const others = TEAMS.filter((t) => t.id !== user.id);
               const cpu = others[Math.floor(Math.random() * others.length)];
-              onStart(user, cpu);
+              onStart(user, cpu, innings);
             }}
             className="px-8 py-3 rounded-lg bg-yellow-400 text-black font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
           >
