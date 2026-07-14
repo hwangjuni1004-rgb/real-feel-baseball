@@ -190,7 +190,12 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
   const batter = battingTeam.lineup[(userBats ? state.userBatIdx : state.cpuBatIdx) % battingTeam.lineup.length];
   const pitcher = pitchingTeam.rotation[(userBats ? state.cpuPitIdx : state.userPitIdx) % pitchingTeam.rotation.length];
 
-  const gameOver = state.inning > INNINGS && state.half === "top";
+  // 정규 종료 + 조기 종료 (홈팀=유저 리드 후 마지막 회 초 완료 / 마지막 회 말 워크오프)
+  const gameOver =
+    (state.inning > INNINGS && state.half === "top") ||
+    (state.inning === INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
+    (state.inning >= INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
+    (state.inning > INNINGS);
 
   const appendLog = (msg: string) => {
     setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
