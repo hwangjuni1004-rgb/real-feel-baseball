@@ -9,6 +9,7 @@ export interface Batter {
   bats: "L" | "R" | "S";
   power: number; // 1-10
   contact: number; // 1-10
+  speed?: number; // 1-10 (도루/주루 능력)
 }
 
 export interface PitchType {

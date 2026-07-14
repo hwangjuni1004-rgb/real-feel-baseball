@@ -30,18 +30,35 @@ const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const inStrikeZone = (loc: PitchLoc) => loc.col >= 1 && loc.col <= 3 && loc.row >= 1 && loc.row <= 3;
 
+// 알려진 발빠른/느린 선수 스피드 오버라이드
+const SPEED_MAP: Record<string, number> = {
+  "박해민": 10, "김지찬": 10, "정수빈": 9, "김혜성": 10, "황성빈": 10,
+  "최지훈": 9, "박찬호": 9, "홍창기": 8, "신민재": 8, "김선빈": 7,
+  "박민우": 8, "손아섭": 6, "고승민": 8, "윤동희": 8, "이주형": 8,
+  "김주원": 8, "정준재": 8, "김상수": 7, "최인호": 8, "이도윤": 7,
+  // 느린 편
+  "박병호": 3, "최형우": 3, "강민호": 3, "양의지": 3, "양석환": 4,
+  "김재환": 4, "오스틴": 5, "박동원": 4, "채은성": 4, "김태군": 3,
+  "유강남": 3, "장성우": 4, "제러드": 5, "디아즈": 5, "최정": 4,
+  "이지영": 4, "최재훈": 4, "최주환": 5, "김건희": 5, "이형종": 5,
+  "박승욱": 6, "김재호": 5, "김헌곤": 5,
+};
+const speedOf = (b: Batter): number => SPEED_MAP[b.name] ?? b.speed ?? (5 + Math.round((b.contact - 6) * 0.5));
+
 // ---------- Component ----------
 function Game() {
   const [phase, setPhase] = useState<Phase>("team-select");
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
+  const [innings, setInnings] = useState<number>(3);
 
   if (phase === "team-select") {
     return (
       <TeamSelect
-        onStart={(u, c) => {
+        onStart={(u, c, inn) => {
           setUserTeam(u);
           setCpuTeam(c);
+          setInnings(inn);
           setPhase("playing");
         }}
       />
@@ -53,6 +70,7 @@ function Game() {
       <Match
         userTeam={userTeam}
         cpuTeam={cpuTeam}
+        innings={innings}
         onFinish={() => setPhase("team-select")}
       />
     );
@@ -61,8 +79,9 @@ function Game() {
 }
 
 // ---------- Team Select ----------
-function TeamSelect({ onStart }: { onStart: (u: Team, c: Team) => void }) {
+function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) => void }) {
   const [user, setUser] = useState<Team | null>(null);
+  const [innings, setInnings] = useState<number>(3);
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white px-4 py-10">
       <div className="max-w-5xl mx-auto">
@@ -90,14 +109,30 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team) => void }) {
             </button>
           ))}
         </div>
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-white/60 mr-2">경기 이닝</span>
+            {[3, 6, 9].map((n) => (
+              <button
+                key={n}
+                onClick={() => setInnings(n)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition ${
+                  innings === n
+                    ? "bg-yellow-400 text-black border-yellow-300"
+                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                }`}
+              >
+                {n}이닝
+              </button>
+            ))}
+          </div>
           <button
             disabled={!user}
             onClick={() => {
               if (!user) return;
               const others = TEAMS.filter((t) => t.id !== user.id);
               const cpu = others[Math.floor(Math.random() * others.length)];
-              onStart(user, cpu);
+              onStart(user, cpu, innings);
             }}
             className="px-8 py-3 rounded-lg bg-yellow-400 text-black font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
           >
@@ -128,9 +163,8 @@ interface GameState {
   log: string[];
 }
 
-const INNINGS = 3;
-
-function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team; onFinish: () => void }) {
+function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
+  const INNINGS = innings;
   const [state, setState] = useState<GameState>({
     inning: 1,
     half: "top",
@@ -156,7 +190,12 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
   const batter = battingTeam.lineup[(userBats ? state.userBatIdx : state.cpuBatIdx) % battingTeam.lineup.length];
   const pitcher = pitchingTeam.rotation[(userBats ? state.cpuPitIdx : state.userPitIdx) % pitchingTeam.rotation.length];
 
-  const gameOver = state.inning > INNINGS && state.half === "top";
+  // 정규 종료 + 조기 종료 (홈팀=유저 리드 후 마지막 회 초 완료 / 마지막 회 말 워크오프)
+  const gameOver =
+    (state.inning > INNINGS && state.half === "top") ||
+    (state.inning === INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
+    (state.inning >= INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
+    (state.inning > INNINGS);
 
   const appendLog = (msg: string) => {
     setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
@@ -217,7 +256,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
       else if (bases[1]) targetIdx = 1;
       else if (bases[2]) targetIdx = 2;
       if (targetIdx === -1) return s;
-      const success = auto ? true : Math.random() < 0.08;
+      const success = auto ? true : Math.random() < 0.025;
       let outs = s.outs;
       let inning = s.inning, half = s.half, log = s.log;
       let newBases = bases;
@@ -430,7 +469,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onCount={advanceCount}
               onHit={applyHit}
               bases={state.bases}
-              onSteal={() => attemptSteal(clamp(0.62 + (batter.contact - 6) * 0.04, 0.5, 0.88))}
+              onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
               battingTeam={userTeam}
               key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
             />
@@ -446,7 +485,7 @@ function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team;
               onChangePitcher={changeUserPitcher}
               bases={state.bases}
               onPickoff={attemptPickoff}
-              onCpuSteal={() => attemptSteal(0.55)}
+              onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
               battingTeam={cpuTeam}
               balls={state.balls}
               strikes={state.strikes}
@@ -830,15 +869,20 @@ function BatterView({
   const [phaseMsg, setPhaseMsg] = useState<string>("겨냥할 코스를 고르고 준비하세요");
   const [ready, setReady] = useState(false);
   const swungRef = useRef(false);
+  const pendingHitRef = useRef(false); // 홈런/안타 처리 지연 중 다음 투구 방지
+  const [pending, setPending] = useState(false);
   const timingWindow = useRef<{ start: number; end: number; ideal: number } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
+  const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), delayMs);
   };
+  const markPending = () => { pendingHitRef.current = true; setPending(true); };
 
   const startPitch = () => {
+    if (pendingHitRef.current) return;
     swungRef.current = false;
     const type = pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)];
     // 75% strike, 25% 아슬아슬한 볼 (완전 밖 X). 존 근처로만 빠지게
@@ -877,7 +921,9 @@ function BatterView({
     setTimeout(() => {
       if (!swungRef.current) {
         const strike = inStrikeZone(actual);
-        setPhaseMsg(strike ? "루킹 스트라이크!" : "볼");
+        const label = strike ? "스트라이크" : "볼";
+        setPhaseMsg(label);
+        setLastPitch({ name: type.name, speed, result: label });
         onCount(strike ? "strike" : "ball");
       }
       setPitch(null);
@@ -892,7 +938,6 @@ function BatterView({
     setTimeout(() => setSwingAnim(false), 400);
     const now = Date.now();
     const w = timingWindow.current!;
-    // 타이밍 판정
     let timing: "perfect" | "good" | "early" | "late" | "miss";
     const diff = now - w.ideal;
     if (Math.abs(diff) < 60) timing = "perfect";
@@ -902,29 +947,24 @@ function BatterView({
     else if (diff < 0) timing = "early";
     else timing = "miss";
 
-    // 존 예측 정확도
     const zoneMatch = guessLoc
       ? Math.max(0, 1 - (Math.abs(guessLoc.col - pitch.actual.col) + Math.abs(guessLoc.row - pitch.actual.row)) / 4)
       : 0.4;
 
     const strike = inStrikeZone(pitch.actual);
-    // 코너 정도 - 존 안이면서 구석일수록 안타 어려움, 한복판이면 쉬움
     const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
     const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
-    // 플래툰: 같은 손 매치업은 타자 불리
     const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
-    // 구속 페널티
-    const speedPen = -clamp((pitch.speed - 145) * 0.006, -0.04, 0.12);
-    // 정확 스탯: 존 밖 컨택 확률
-    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06; // 정확 10 → 0.85, 5 → 0.55
+    // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
+    const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
+    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
+
+    const record = (result: string) => setLastPitch({ name: pitch.type.name, speed: pitch.speed, result });
 
     if (timing === "miss") {
-      setPhaseMsg("헛스윙!");
-      onCount("strike");
-      return;
+      setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
     }
 
-    // contact 확률
     const contactProb = clamp(
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
@@ -932,13 +972,8 @@ function BatterView({
       platoon + speedPen + cornerAdj * 0.3,
       0.05, 0.98,
     );
-    if (Math.random() > contactProb) {
-      setPhaseMsg("헛스윙!");
-      onCount("strike");
-      return;
-    }
+    if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
 
-    // 타구 퀄리티
     let q = Math.random();
     if (timing === "perfect") q += 0.4;
     else if (timing === "good") q += 0.15;
@@ -946,19 +981,20 @@ function BatterView({
     q += zoneMatch * 0.15;
     q += cornerAdj;
     q += platoon * 0.5;
+    // 구속 빠르면 장타 확률 급락
+    q += speedPen * 1.4;
 
-    if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
+    if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
-      // 아웃 - 땅볼/플라이 50:50 (perfect 타이밍은 플라이 확률 상승)
       const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
-      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); onHit("fly"); }
-      else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); markPending(); onHit("fly"); }
+      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); markPending(); onHit("out"); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); showHit("안타", "single", 900); setTimeout(() => onHit("single"), 850); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); showHit("2루타", "double", 1000); setTimeout(() => onHit("double"), 950); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); showHit("3루타", "triple", 1100); setTimeout(() => onHit("triple"), 1050); return; }
-    setPhaseMsg("🎉 홈런!"); showHit("🎉 홈런! 🎉", "homer", 1600); setTimeout(() => onHit("homer"), 1500);
+    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 900); markPending(); setTimeout(() => onHit("single"), 850); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1000); markPending(); setTimeout(() => onHit("double"), 950); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1100); markPending(); setTimeout(() => onHit("triple"), 1050); return; }
+    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1600); markPending(); setTimeout(() => onHit("homer"), 1500);
   };
 
   // 스페이스바 지원
@@ -995,13 +1031,21 @@ function BatterView({
         />
 
         <div className="space-y-2">
+          {lastPitch && (
+            <div className="rounded-lg bg-black/50 border border-white/10 px-2 py-1.5 text-xs">
+              <div className="text-white/50 text-[10px]">지난 공</div>
+              <div className="font-bold text-yellow-200">{lastPitch.speed}km/h · {lastPitch.name}</div>
+              <div className="text-white/70 text-[10px]">→ {lastPitch.result}</div>
+            </div>
+          )}
           <div className="text-xs text-white/60">좌측에서 겨냥할 코스를 선택. 공이 미트에 닿는 순간 스윙!</div>
           {!ready ? (
             <button
               onClick={startPitch}
-              className="w-full py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
+              disabled={pending}
+              className="w-full py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              투구 요청 (Space)
+              {pending ? "결과 처리 중..." : "투구 요청 (Space)"}
             </button>
           ) : (
             <button
