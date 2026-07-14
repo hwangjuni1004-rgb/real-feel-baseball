@@ -27,13 +27,6 @@ export interface Pitcher {
   pitches: PitchType[];
 }
 
-export interface Legend {
-  name: string;
-  number: number;
-  nickname: string;
-  retired: boolean; // true = 실제 영구결번, false = 구단 레전드(비공식, 영구결번 아님)
-}
-
 export interface Team {
   id: string;
   name: string;
@@ -42,7 +35,6 @@ export interface Team {
   accent: string;
   lineup: Batter[];
   rotation: Pitcher[];
-  legends: Legend[];
 }
 
 // 구속 편차 확대: 같은 투수 안에서도 구종별 격차 크게
@@ -78,12 +70,6 @@ export const TEAMS: Team[] = [
       { name: "장현식", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
       { name: "전상현", throws: "R", velo: 147, control: 8, pitches: [FB(147), SL(147), CH(147)] },
     ],
-    legends: [
-      { name: "이종범", number: 7, nickname: "바람의 아들", retired: true },
-      { name: "선동열", number: 18, nickname: "국보급 투수", retired: true },
-      { name: "김성한", number: 20, nickname: "무등산 폭격기", retired: false },
-      { name: "이순철", number: 3, nickname: "야생마", retired: false },
-    ],
   },
   {
     id: "samsung", name: "삼성 라이온즈", short: "SS", color: "#074CA1", accent: "#C0C0C0",
@@ -106,12 +92,6 @@ export const TEAMS: Team[] = [
       { name: "임창민", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146)] },
       { name: "이승현", throws: "L", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
       { name: "황동재", throws: "R", velo: 147, control: 7, pitches: [FB(147), SL(147), CB(147)] },
-    ],
-    legends: [
-      { name: "양준혁", number: 10, nickname: "양신", retired: true },
-      { name: "이만수", number: 22, nickname: "헐크", retired: true },
-      { name: "이승엽", number: 36, nickname: "국민타자", retired: true },
-      { name: "오승환", number: 21, nickname: "돌부처", retired: false },
     ],
   },
   {
@@ -153,12 +133,6 @@ export const TEAMS: Team[] = [
       { name: "이상영", throws: "L", velo: 146, control: 7, pitches: [FB(146), SL(146), CH(146)] },
       { name: "우강훈", throws: "R", velo: 150, control: 6, pitches: [FB(150), SL(150), FK(150)] },
     ],
-    legends: [
-      { name: "이병규", number: 9, nickname: "그라운드의 신사", retired: true },
-      { name: "박용택", number: 33, nickname: "미스터 엘지", retired: true },
-      { name: "김용수", number: 41, nickname: "무쇠팔", retired: true },
-      { name: "유지현", number: 4, nickname: "국민 유격수", retired: false },
-    ],
   },
   {
     id: "doosan", name: "두산 베어스", short: "OB", color: "#131230", accent: "#ED1C24",
@@ -181,12 +155,6 @@ export const TEAMS: Team[] = [
       { name: "이영하", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
       { name: "김유성", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
       { name: "정철원", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
-    ],
-    legends: [
-      { name: "박철순", number: 21, nickname: "불사조", retired: true },
-      { name: "김영신", number: 54, nickname: "KBO 1호 영구결번", retired: true },
-      { name: "김동주", number: 40, nickname: "오리 궁둥이", retired: false },
-      { name: "홍성흔", number: 25, nickname: "흔새우", retired: false },
     ],
   },
   {
@@ -211,12 +179,6 @@ export const TEAMS: Team[] = [
       { name: "엄상백", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CH(148)] },
       { name: "손동현", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
     ],
-    legends: [
-      { name: "유한준", number: 45, nickname: "위즈 초대 프랜차이즈 스타", retired: false },
-      { name: "박경수", number: 6, nickname: "위즈의 캡틴", retired: false },
-      { name: "황재균", number: 10, nickname: "지역 연고 스타", retired: false },
-      { name: "심재민", number: 21, nickname: "위즈 창단 멤버 좌완", retired: false },
-    ],
   },
   {
     id: "ssg", name: "SSG 랜더스", short: "SG", color: "#CE0E2D", accent: "#FFB81C",
@@ -239,12 +201,6 @@ export const TEAMS: Team[] = [
       { name: "노경은", throws: "R", velo: 146, control: 8, pitches: [FB(146), SL(146), CH(146)] },
       { name: "문승원", throws: "R", velo: 148, control: 8, pitches: [FB(148), SL(148), CB(148)] },
       { name: "박시후", throws: "L", velo: 145, control: 7, pitches: [FB(145), SL(145), CH(145)] },
-    ],
-    legends: [
-      { name: "박경완", number: 26, nickname: "그라운드의 아이언맨", retired: true },
-      { name: "박정권", number: 27, nickname: "역전의 명수", retired: false },
-      { name: "정근우", number: 23, nickname: "리그의 캡틴", retired: false },
-      { name: "이승호", number: 43, nickname: "와이번스 원년 멤버 좌완", retired: false },
     ],
   },
   {
@@ -269,12 +225,6 @@ export const TEAMS: Team[] = [
       { name: "구승민", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
       { name: "박진", throws: "R", velo: 146, control: 7, pitches: [FB(146), SL(146), CH(146)] },
     ],
-    legends: [
-      { name: "최동원", number: 11, nickname: "무쇠팔", retired: true },
-      { name: "이대호", number: 10, nickname: "조선의 4번타자", retired: true },
-      { name: "윤학길", number: 29, nickname: "황소", retired: false },
-      { name: "박정태", number: 7, nickname: "야생마", retired: false },
-    ],
   },
   {
     id: "hanwha", name: "한화 이글스", short: "HH", color: "#FF6600", accent: "#000000",
@@ -297,12 +247,6 @@ export const TEAMS: Team[] = [
       { name: "황준서", throws: "L", velo: 147, control: 7, pitches: [FB(147), SL(147), CB(147)] },
       { name: "김서현", throws: "R", velo: 156, control: 6, pitches: [FB(156), SL(156), FK(156)] },
       { name: "장민재", throws: "R", velo: 144, control: 8, pitches: [FB(144), SL(144), CH(144)] },
-    ],
-    legends: [
-      { name: "송진우", number: 21, nickname: "코리안 사이보그", retired: true },
-      { name: "정민철", number: 23, nickname: "체인지업의 달인", retired: true },
-      { name: "장종훈", number: 35, nickname: "오빠부대 몰고 다닌 홈런왕", retired: true },
-      { name: "김태균", number: 52, nickname: "탱크", retired: true },
     ],
   },
   {
@@ -327,12 +271,6 @@ export const TEAMS: Team[] = [
       { name: "김영규", throws: "L", velo: 147, control: 7, pitches: [FB(147), SL(147), CH(147)] },
       { name: "이재학", throws: "R", velo: 145, control: 8, pitches: [FB(145), CH(145), SL(145)] },
     ],
-    legends: [
-      { name: "나성범", number: 47, nickname: "나이스", retired: false },
-      { name: "박석민", number: 32, nickname: "돌부처 2세", retired: false },
-      { name: "손시헌", number: 6, nickname: "다이노스 초대 캡틴", retired: false },
-      { name: "이재학", number: 21, nickname: "다이노스 원년 에이스", retired: false },
-    ],
   },
   {
     id: "kiwoom", name: "키움 히어로즈", short: "WO", color: "#570514", accent: "#B07F35",
@@ -355,12 +293,6 @@ export const TEAMS: Team[] = [
       { name: "김선기", throws: "R", velo: 147, control: 7, pitches: [FB(147), SL(147), CH(147)] },
       { name: "김윤하", throws: "R", velo: 149, control: 6, pitches: [FB(149), SL(149), CB(149)] },
       { name: "김성민", throws: "L", velo: 145, control: 7, pitches: [FB(145), SL(145), CH(145)] },
-    ],
-    legends: [
-      { name: "박병호", number: 52, nickname: "홈런왕", retired: false },
-      { name: "서건창", number: 14, nickname: "2할리안", retired: false },
-      { name: "강정호", number: 16, nickname: "야생마", retired: false },
-      { name: "이택근", number: 30, nickname: "히어로즈 원년 캡틴", retired: false },
     ],
   },
 ];
