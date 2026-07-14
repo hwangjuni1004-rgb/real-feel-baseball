@@ -163,9 +163,8 @@ interface GameState {
   log: string[];
 }
 
-const INNINGS = 3;
-
-function Match({ userTeam, cpuTeam, onFinish }: { userTeam: Team; cpuTeam: Team; onFinish: () => void }) {
+function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
+  const INNINGS = innings;
   const [state, setState] = useState<GameState>({
     inning: 1,
     half: "top",
