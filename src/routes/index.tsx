@@ -1042,9 +1042,10 @@ function BatterView({
           {!ready ? (
             <button
               onClick={startPitch}
-              className="w-full py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
+              disabled={pending}
+              className="w-full py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              투구 요청 (Space)
+              {pending ? "결과 처리 중..." : "투구 요청 (Space)"}
             </button>
           ) : (
             <button
