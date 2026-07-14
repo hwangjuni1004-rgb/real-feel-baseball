@@ -30,6 +30,21 @@ const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const inStrikeZone = (loc: PitchLoc) => loc.col >= 1 && loc.col <= 3 && loc.row >= 1 && loc.row <= 3;
 
+// 알려진 발빠른/느린 선수 스피드 오버라이드
+const SPEED_MAP: Record<string, number> = {
+  "박해민": 10, "김지찬": 10, "정수빈": 9, "김혜성": 10, "황성빈": 10,
+  "최지훈": 9, "박찬호": 9, "홍창기": 8, "신민재": 8, "김선빈": 7,
+  "박민우": 8, "손아섭": 6, "고승민": 8, "윤동희": 8, "이주형": 8,
+  "김주원": 8, "정준재": 8, "김상수": 7, "최인호": 8, "이도윤": 7,
+  // 느린 편
+  "박병호": 3, "최형우": 3, "강민호": 3, "양의지": 3, "양석환": 4,
+  "김재환": 4, "오스틴": 5, "박동원": 4, "채은성": 4, "김태군": 3,
+  "유강남": 3, "장성우": 4, "제러드": 5, "디아즈": 5, "최정": 4,
+  "이지영": 4, "최재훈": 4, "최주환": 5, "김건희": 5, "이형종": 5,
+  "박승욱": 6, "김재호": 5, "김헌곤": 5,
+};
+const speedOf = (b: Batter): number => SPEED_MAP[b.name] ?? b.speed ?? (5 + Math.round((b.contact - 6) * 0.5));
+
 // ---------- Component ----------
 function Game() {
   const [phase, setPhase] = useState<Phase>("team-select");
