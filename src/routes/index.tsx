@@ -485,7 +485,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
               onChangePitcher={changeUserPitcher}
               bases={state.bases}
               onPickoff={attemptPickoff}
-              onCpuSteal={() => attemptSteal(0.55)}
+              onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
               battingTeam={cpuTeam}
               balls={state.balls}
               strikes={state.strikes}
