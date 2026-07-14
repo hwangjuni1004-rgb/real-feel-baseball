@@ -921,7 +921,9 @@ function BatterView({
     setTimeout(() => {
       if (!swungRef.current) {
         const strike = inStrikeZone(actual);
-        setPhaseMsg(strike ? "루킹 스트라이크!" : "볼");
+        const label = strike ? "스트라이크" : "볼";
+        setPhaseMsg(label);
+        setLastPitch({ name: type.name, speed, result: label });
         onCount(strike ? "strike" : "ball");
       }
       setPitch(null);
@@ -936,7 +938,6 @@ function BatterView({
     setTimeout(() => setSwingAnim(false), 400);
     const now = Date.now();
     const w = timingWindow.current!;
-    // 타이밍 판정
     let timing: "perfect" | "good" | "early" | "late" | "miss";
     const diff = now - w.ideal;
     if (Math.abs(diff) < 60) timing = "perfect";
@@ -946,29 +947,24 @@ function BatterView({
     else if (diff < 0) timing = "early";
     else timing = "miss";
 
-    // 존 예측 정확도
     const zoneMatch = guessLoc
       ? Math.max(0, 1 - (Math.abs(guessLoc.col - pitch.actual.col) + Math.abs(guessLoc.row - pitch.actual.row)) / 4)
       : 0.4;
 
     const strike = inStrikeZone(pitch.actual);
-    // 코너 정도 - 존 안이면서 구석일수록 안타 어려움, 한복판이면 쉬움
     const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
     const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
-    // 플래툰: 같은 손 매치업은 타자 불리
     const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
-    // 구속 페널티
-    const speedPen = -clamp((pitch.speed - 145) * 0.006, -0.04, 0.12);
-    // 정확 스탯: 존 밖 컨택 확률
-    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06; // 정확 10 → 0.85, 5 → 0.55
+    // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
+    const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
+    const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
+
+    const record = (result: string) => setLastPitch({ name: pitch.type.name, speed: pitch.speed, result });
 
     if (timing === "miss") {
-      setPhaseMsg("헛스윙!");
-      onCount("strike");
-      return;
+      setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
     }
 
-    // contact 확률
     const contactProb = clamp(
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
@@ -976,13 +972,8 @@ function BatterView({
       platoon + speedPen + cornerAdj * 0.3,
       0.05, 0.98,
     );
-    if (Math.random() > contactProb) {
-      setPhaseMsg("헛스윙!");
-      onCount("strike");
-      return;
-    }
+    if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
 
-    // 타구 퀄리티
     let q = Math.random();
     if (timing === "perfect") q += 0.4;
     else if (timing === "good") q += 0.15;
@@ -990,19 +981,20 @@ function BatterView({
     q += zoneMatch * 0.15;
     q += cornerAdj;
     q += platoon * 0.5;
+    // 구속 빠르면 장타 확률 급락
+    q += speedPen * 1.4;
 
-    if (q < 0.45) { setPhaseMsg("파울"); onCount("foul"); return; }
+    if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
-      // 아웃 - 땅볼/플라이 50:50 (perfect 타이밍은 플라이 확률 상승)
       const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
-      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); onHit("fly"); }
-      else { setPhaseMsg("땅볼 아웃"); onHit("out"); }
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); markPending(); onHit("fly"); }
+      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); markPending(); onHit("out"); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); showHit("안타", "single", 900); setTimeout(() => onHit("single"), 850); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); showHit("2루타", "double", 1000); setTimeout(() => onHit("double"), 950); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); showHit("3루타", "triple", 1100); setTimeout(() => onHit("triple"), 1050); return; }
-    setPhaseMsg("🎉 홈런!"); showHit("🎉 홈런! 🎉", "homer", 1600); setTimeout(() => onHit("homer"), 1500);
+    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 900); markPending(); setTimeout(() => onHit("single"), 850); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1000); markPending(); setTimeout(() => onHit("double"), 950); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1100); markPending(); setTimeout(() => onHit("triple"), 1050); return; }
+    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1600); markPending(); setTimeout(() => onHit("homer"), 1500);
   };
 
   // 스페이스바 지원
