@@ -50,13 +50,15 @@ function Game() {
   const [phase, setPhase] = useState<Phase>("team-select");
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
+  const [innings, setInnings] = useState<number>(3);
 
   if (phase === "team-select") {
     return (
       <TeamSelect
-        onStart={(u, c) => {
+        onStart={(u, c, inn) => {
           setUserTeam(u);
           setCpuTeam(c);
+          setInnings(inn);
           setPhase("playing");
         }}
       />
@@ -68,6 +70,7 @@ function Game() {
       <Match
         userTeam={userTeam}
         cpuTeam={cpuTeam}
+        innings={innings}
         onFinish={() => setPhase("team-select")}
       />
     );
