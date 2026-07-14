@@ -882,6 +882,7 @@ function BatterView({
   const markPending = () => { pendingHitRef.current = true; setPending(true); };
 
   const startPitch = () => {
+    if (pendingHitRef.current) return;
     swungRef.current = false;
     const type = pitcher.pitches[Math.floor(Math.random() * pitcher.pitches.length)];
     // 75% strike, 25% 아슬아슬한 볼 (완전 밖 X). 존 근처로만 빠지게
