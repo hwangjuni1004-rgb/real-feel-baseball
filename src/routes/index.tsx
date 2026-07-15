@@ -160,6 +160,8 @@ interface GameState {
   bases: [boolean, boolean, boolean]; // 1, 2, 3
   userPitchersOut: number[];
   cpuPitchersOut: number[];
+  userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
+  cpuPitchCounts: number[];
   log: string[];
 }
 
@@ -180,8 +182,19 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     bases: [false, false, false],
     userPitchersOut: [],
     cpuPitchersOut: [],
+    userPitchCounts: userTeam.rotation.map(() => 0),
+    cpuPitchCounts: cpuTeam.rotation.map(() => 0),
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
+
+  const incPitchCount = (side: "user" | "cpu", idx: number) => {
+    setState((s) => {
+      const key = side === "user" ? "userPitchCounts" : "cpuPitchCounts";
+      const arr = [...s[key]];
+      arr[idx] = (arr[idx] ?? 0) + 1;
+      return { ...s, [key]: arr } as GameState;
+    });
+  };
 
   // user is home team (bat bottom). half=top => cpu bats, user pitches. half=bottom => user bats, cpu pitches.
   const userBats = state.half === "bottom";
@@ -462,42 +475,53 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
 
       <div className="max-w-5xl mx-auto grid md:grid-cols-[1fr_280px] gap-6 p-4 md:p-6">
         <div>
-          {userBats ? (
-            <BatterView
-              batter={batter}
-              pitcher={pitcher}
-              onCount={advanceCount}
-              onHit={applyHit}
-              bases={state.bases}
-              onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
-              battingTeam={userTeam}
-              key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
-            />
-          ) : (
-            <PitcherView
-              batter={batter}
-              pitcher={pitcher}
-              onCount={advanceCount}
-              onHit={applyHit}
-              rotation={userTeam.rotation}
-              currentIdx={state.userPitIdx}
-              usedIdx={state.userPitchersOut}
-              onChangePitcher={changeUserPitcher}
-              bases={state.bases}
-              onPickoff={attemptPickoff}
-              onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
-              battingTeam={cpuTeam}
-              balls={state.balls}
-              strikes={state.strikes}
-              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
-            />
-          )}
+          {(() => {
+            const curPitchCount = userBats
+              ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
+              : (state.userPitchCounts[state.userPitIdx] ?? 0);
+            const stamina = clamp(100 - curPitchCount * 1.6, 0, 100);
+            const onPitchThrown = () => incPitchCount(userBats ? "cpu" : "user", userBats ? state.cpuPitIdx : state.userPitIdx);
+            return userBats ? (
+              <BatterView
+                batter={batter}
+                pitcher={pitcher}
+                onCount={advanceCount}
+                onHit={applyHit}
+                bases={state.bases}
+                onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
+                battingTeam={userTeam}
+                pitcherFatigue={curPitchCount}
+                onPitchThrown={onPitchThrown}
+                key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+              />
+            ) : (
+              <PitcherView
+                batter={batter}
+                pitcher={pitcher}
+                onCount={advanceCount}
+                onHit={applyHit}
+                rotation={userTeam.rotation}
+                currentIdx={state.userPitIdx}
+                usedIdx={state.userPitchersOut}
+                onChangePitcher={changeUserPitcher}
+                bases={state.bases}
+                onPickoff={attemptPickoff}
+                onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
+                battingTeam={cpuTeam}
+                balls={state.balls}
+                strikes={state.strikes}
+                pitcherFatigue={curPitchCount}
+                onPitchThrown={onPitchThrown}
+                key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
+              />
+            );
+          })()}
           <Diamond bases={state.bases} />
         </div>
         <aside className="space-y-4">
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">현재 타석</div>
-            <div className="font-bold text-lg">{batter.name}</div>
+            <BatterNamePlate batter={batter} />
             <div className="text-xs text-white/70">{POS_LABEL[batter.pos]} · {batter.bats === "L" ? "좌타" : batter.bats === "R" ? "우타" : "스위치"}</div>
             <div className="mt-2 flex gap-3 text-xs">
               <span>파워 {batter.power}</span>
@@ -509,6 +533,24 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
             <div className="font-bold text-lg">{pitcher.name}</div>
             <div className="text-xs text-white/70">{pitcher.throws === "L" ? "좌투" : "우투"} · 최고 {pitcher.velo}km/h</div>
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
+            {(() => {
+              const cnt = userBats
+                ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
+                : (state.userPitchCounts[state.userPitIdx] ?? 0);
+              const stamina = clamp(100 - cnt * 1.6, 0, 100);
+              const barColor = stamina > 60 ? "bg-emerald-400" : stamina > 30 ? "bg-yellow-400" : "bg-red-500";
+              return (
+                <div className="mt-2">
+                  <div className="flex justify-between text-[10px] text-white/60">
+                    <span>체력</span>
+                    <span>{Math.round(stamina)} · 투구수 {cnt}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${stamina}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <div className="rounded-lg bg-white/5 border border-white/10 p-3 max-h-64 overflow-y-auto">
             <div className="text-xs text-white/60 mb-2">경기 로그</div>
@@ -530,6 +572,37 @@ function pushRunner(bases: [boolean, boolean, boolean]): { bases: [boolean, bool
   return { bases: b, scored };
 }
 
+function BatterNamePlate({ batter }: { batter: Batter }) {
+  if (batter.legend) {
+    return (
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span
+          className="text-xl font-black italic tracking-wide"
+          style={{
+            fontFamily: "'Playfair Display', 'Noto Serif KR', Georgia, serif",
+            background: "linear-gradient(90deg,#fde047,#f59e0b,#ef4444)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            textShadow: "0 0 8px rgba(253,224,71,0.3)",
+          }}
+        >
+          {batter.name}
+        </span>
+        {batter.number != null && (
+          <span className="text-[10px] font-mono text-yellow-200/80 border border-yellow-300/40 rounded px-1">#{batter.number}</span>
+        )}
+        {batter.nickname && (
+          <span className="text-[11px] italic text-yellow-100/90" style={{ fontFamily: "'Playfair Display', serif" }}>
+            «{batter.nickname}»
+          </span>
+        )}
+        <span className="text-[9px] text-yellow-300/70">★ LEGEND</span>
+      </div>
+    );
+  }
+  return <div className="font-bold text-lg">{batter.name}</div>;
+}
+
 function TeamBadge({ team, score, active }: { team: Team; score: number; active: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${active ? "ring-2 ring-yellow-300" : ""}`} style={{ backgroundColor: team.color }}>
@@ -543,7 +616,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal, battingTeam, balls, strikes,
+  bases, onPickoff, onCpuSteal, battingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -558,6 +631,8 @@ function PitcherView({
   battingTeam: Team;
   balls: number;
   strikes: number;
+  pitcherFatigue: number;
+  onPitchThrown: () => void;
 }) {
   const [pitchTypeIdx, setPitchTypeIdx] = useState(0);
   const [target, setTarget] = useState<PitchLoc | null>(null);
@@ -568,6 +643,7 @@ function PitcherView({
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
   // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
   const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
@@ -654,6 +730,7 @@ function PitcherView({
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
     setPitch({ type, target, actual, speed, startedAt: Date.now(), duration });
     setPhaseMsg("공이 날아갑니다...");
+    onPitchThrown();
     const predicted = predictNextPitch();
     const matched = predicted === type.name;
     pitchHistoryRef.current.push(type.name);
@@ -661,9 +738,11 @@ function PitcherView({
     setTimeout(() => {
       const resultMsg = simulateCpuBatter(
         actual, batter, type, onCount, onHit, setPhaseMsg, showHit, triggerSwing,
-        { pitcher, predictedMatch: matched, speed },
+        { pitcher, predictedMatch: matched, speed, fatigue: pitcherFatigue },
       );
       setLastPitch({ name: type.name, speed, result: resultMsg });
+      setPitchOutcome({ text: resultMsg, speed });
+      setTimeout(() => setPitchOutcome(null), 1400);
       setPitch(null);
       setTarget(null);
       if (cpuStealRef.current) {
@@ -672,6 +751,7 @@ function PitcherView({
       }
     }, duration + 80);
   };
+
 
 
   return (
@@ -690,6 +770,7 @@ function PitcherView({
           hitLabel={hitLabel}
           swinging={swingAnim}
           battingTeam={battingTeam}
+          pitchOutcome={pitchOutcome}
         />
 
         <div className="space-y-2">
@@ -791,23 +872,21 @@ function simulateCpuBatter(
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number },
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number },
 ): string {
   const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  // 코너까지의 거리 (중심 2,2 기준) - 존 안 코너면 안타 확률 하락
-  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2)); // 0(중앙)~2(밖)
+  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2));
   const cornerPenalty = strike ? (cornerDist === 2 ? -0.15 : cornerDist === 1 ? -0.05 : 0.05) : 0;
 
-  // 플래툰 (좌투 vs 좌타, 우투 vs 우타는 타자 불리)
   const platoon = opts?.pitcher
     ? (opts.pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05)
     : 0;
-  // 예측 성공 시 CPU 타자 유리
   const predBonus = opts?.predictedMatch ? 0.14 : -0.08;
-  // 구속 - 빠를수록 컨택 하락
   const speedPenalty = opts ? -clamp((opts.speed - 145) * 0.008, -0.05, 0.15) : 0;
+  // 투수 피로도 - 투구수가 많을수록 타자 유리 (30구부터 상승, 최대 +0.20)
+  const fatigueBoost = clamp(((opts?.fatigue ?? 0) - 30) * 0.005, 0, 0.20);
 
   const swingBase = strike ? 0.78 : 0.30;
   const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3 + (opts?.predictedMatch ? 0.08 : -0.05), 0.1, 0.95);
@@ -819,14 +898,14 @@ function simulateCpuBatter(
     setMsg("볼"); onCount("ball"); return "볼";
   }
   const contactProb = clamp(
-    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4,
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost,
     0.05, 0.96,
   );
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
@@ -855,7 +934,7 @@ function simulateCpuBatter(
 
 // ---------- Batter View (user bats) ----------
 function BatterView({
-  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam,
+  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -863,6 +942,8 @@ function BatterView({
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
   battingTeam: Team;
+  pitcherFatigue: number;
+  onPitchThrown: () => void;
 }) {
   const [guessLoc, setGuessLoc] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
@@ -875,6 +956,11 @@ function BatterView({
   const [swingAnim, setSwingAnim] = useState(false);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
+  const showOutcome = (text: string, speed: number) => {
+    setPitchOutcome({ text, speed });
+    setTimeout(() => setPitchOutcome(null), 1400);
+  };
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), delayMs);
@@ -910,6 +996,7 @@ function BatterView({
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
     const startedAt = Date.now();
     setPitch({ type, target, actual, speed, startedAt, duration });
+    onPitchThrown();
     setReady(true);
     setPhaseMsg("스윙 타이밍을 맞추세요!");
     timingWindow.current = {
@@ -924,12 +1011,14 @@ function BatterView({
         const label = strike ? "스트라이크" : "볼";
         setPhaseMsg(label);
         setLastPitch({ name: type.name, speed, result: label });
+        showOutcome(label, speed);
         onCount(strike ? "strike" : "ball");
       }
       setPitch(null);
       setReady(false);
     }, duration + 200);
   };
+
 
   const swing = () => {
     if (!pitch || swungRef.current) return;
@@ -958,8 +1047,10 @@ function BatterView({
     // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
     const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
     const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
+    // 상대 투수 피로도가 높을수록 컨택/장타 상승
+    const fatigueBoost = clamp((pitcherFatigue - 30) * 0.005, 0, 0.20);
 
-    const record = (result: string) => setLastPitch({ name: pitch.type.name, speed: pitch.speed, result });
+    const record = (result: string) => { setLastPitch({ name: pitch.type.name, speed: pitch.speed, result }); showOutcome(result, pitch.speed); };
 
     if (timing === "miss") {
       setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
@@ -969,7 +1060,7 @@ function BatterView({
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -981,8 +1072,8 @@ function BatterView({
     q += zoneMatch * 0.15;
     q += cornerAdj;
     q += platoon * 0.5;
-    // 구속 빠르면 장타 확률 급락
     q += speedPen * 1.4;
+    q += fatigueBoost * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
@@ -996,6 +1087,7 @@ function BatterView({
     if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1100); markPending(); setTimeout(() => onHit("triple"), 1050); return; }
     setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1600); markPending(); setTimeout(() => onHit("homer"), 1500);
   };
+
 
   // 스페이스바 지원
   useEffect(() => {
@@ -1028,6 +1120,7 @@ function BatterView({
           swinging={swingAnim}
           hitLabel={hitLabel}
           battingTeam={battingTeam}
+          pitchOutcome={pitchOutcome}
         />
 
         <div className="space-y-2">
@@ -1078,7 +1171,7 @@ function BatterView({
 
 // ---------- Strike Zone ----------
 function StrikeZone({
-  target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam,
+  target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam, pitchOutcome,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -1089,6 +1182,7 @@ function StrikeZone({
   swinging?: boolean;
   hitLabel?: { text: string; kind: "single" | "double" | "triple" | "homer" } | null;
   battingTeam?: Team;
+  pitchOutcome?: { text: string; speed: number } | null;
 }) {
   const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
@@ -1289,6 +1383,19 @@ function StrikeZone({
           }}
         >
           <RunnerSvg color={battingTeam.color} accent={battingTeam.accent} />
+        </div>
+      )}
+
+      {/* 모든 공 결과 + 구속 팝업 (안타가 아닐 때도 표시) */}
+      {pitchOutcome && !hitLabel && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[38] pointer-events-none">
+          <div
+            className="px-3 py-1.5 rounded-lg bg-black/75 border border-yellow-300/50 shadow-xl text-center"
+            style={{ animation: "hitPop 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards" }}
+          >
+            <div className="text-sm font-bold text-yellow-200 tracking-wide whitespace-nowrap">{pitchOutcome.text}</div>
+            <div className="text-[11px] font-mono text-white tabular-nums">{pitchOutcome.speed} km/h</div>
+          </div>
         </div>
       )}
 
