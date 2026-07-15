@@ -1120,6 +1120,7 @@ function BatterView({
           swinging={swingAnim}
           hitLabel={hitLabel}
           battingTeam={battingTeam}
+          pitchOutcome={pitchOutcome}
         />
 
         <div className="space-y-2">
