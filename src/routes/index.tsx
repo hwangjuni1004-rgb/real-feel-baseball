@@ -160,6 +160,8 @@ interface GameState {
   bases: [boolean, boolean, boolean]; // 1, 2, 3
   userPitchersOut: number[];
   cpuPitchersOut: number[];
+  userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
+  cpuPitchCounts: number[];
   log: string[];
 }
 
@@ -180,8 +182,19 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     bases: [false, false, false],
     userPitchersOut: [],
     cpuPitchersOut: [],
+    userPitchCounts: userTeam.rotation.map(() => 0),
+    cpuPitchCounts: cpuTeam.rotation.map(() => 0),
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
+
+  const incPitchCount = (side: "user" | "cpu", idx: number) => {
+    setState((s) => {
+      const key = side === "user" ? "userPitchCounts" : "cpuPitchCounts";
+      const arr = [...s[key]];
+      arr[idx] = (arr[idx] ?? 0) + 1;
+      return { ...s, [key]: arr } as GameState;
+    });
+  };
 
   // user is home team (bat bottom). half=top => cpu bats, user pitches. half=bottom => user bats, cpu pitches.
   const userBats = state.half === "bottom";
