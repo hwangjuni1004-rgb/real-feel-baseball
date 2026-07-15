@@ -643,6 +643,7 @@ function PitcherView({
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [swingAnim, setSwingAnim] = useState(false);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
   // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
   const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
