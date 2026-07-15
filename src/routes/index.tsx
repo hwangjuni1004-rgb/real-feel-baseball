@@ -1386,6 +1386,19 @@ function StrikeZone({
         </div>
       )}
 
+      {/* 모든 공 결과 + 구속 팝업 (안타가 아닐 때도 표시) */}
+      {pitchOutcome && !hitLabel && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[38] pointer-events-none">
+          <div
+            className="px-3 py-1.5 rounded-lg bg-black/75 border border-yellow-300/50 shadow-xl text-center"
+            style={{ animation: "hitPop 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards" }}
+          >
+            <div className="text-sm font-bold text-yellow-200 tracking-wide whitespace-nowrap">{pitchOutcome.text}</div>
+            <div className="text-[11px] font-mono text-white tabular-nums">{pitchOutcome.speed} km/h</div>
+          </div>
+        </div>
+      )}
+
       {/* 결과 텍스트 오버레이 */}
       {hitLabel && (
         <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center">
