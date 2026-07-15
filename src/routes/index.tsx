@@ -955,6 +955,11 @@ function BatterView({
   const [swingAnim, setSwingAnim] = useState(false);
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
+  const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
+  const showOutcome = (text: string, speed: number) => {
+    setPitchOutcome({ text, speed });
+    setTimeout(() => setPitchOutcome(null), 1400);
+  };
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", delayMs: number) => {
     setHitLabel({ text, kind });
     setTimeout(() => setHitLabel(null), delayMs);
