@@ -995,6 +995,7 @@ function BatterView({
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
     const startedAt = Date.now();
     setPitch({ type, target, actual, speed, startedAt, duration });
+    onPitchThrown();
     setReady(true);
     setPhaseMsg("스윙 타이밍을 맞추세요!");
     timingWindow.current = {
