@@ -1046,8 +1046,10 @@ function BatterView({
     // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
     const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
     const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
+    // 상대 투수 피로도가 높을수록 컨택/장타 상승
+    const fatigueBoost = clamp((pitcherFatigue - 30) * 0.005, 0, 0.20);
 
-    const record = (result: string) => setLastPitch({ name: pitch.type.name, speed: pitch.speed, result });
+    const record = (result: string) => { setLastPitch({ name: pitch.type.name, speed: pitch.speed, result }); showOutcome(result, pitch.speed); };
 
     if (timing === "miss") {
       setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
@@ -1057,7 +1059,7 @@ function BatterView({
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -1069,8 +1071,8 @@ function BatterView({
     q += zoneMatch * 0.15;
     q += cornerAdj;
     q += platoon * 0.5;
-    // 구속 빠르면 장타 확률 급락
     q += speedPen * 1.4;
+    q += fatigueBoost * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
@@ -1084,6 +1086,7 @@ function BatterView({
     if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1100); markPending(); setTimeout(() => onHit("triple"), 1050); return; }
     setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1600); markPending(); setTimeout(() => onHit("homer"), 1500);
   };
+
 
   // 스페이스바 지원
   useEffect(() => {
