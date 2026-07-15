@@ -475,42 +475,53 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
 
       <div className="max-w-5xl mx-auto grid md:grid-cols-[1fr_280px] gap-6 p-4 md:p-6">
         <div>
-          {userBats ? (
-            <BatterView
-              batter={batter}
-              pitcher={pitcher}
-              onCount={advanceCount}
-              onHit={applyHit}
-              bases={state.bases}
-              onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
-              battingTeam={userTeam}
-              key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
-            />
-          ) : (
-            <PitcherView
-              batter={batter}
-              pitcher={pitcher}
-              onCount={advanceCount}
-              onHit={applyHit}
-              rotation={userTeam.rotation}
-              currentIdx={state.userPitIdx}
-              usedIdx={state.userPitchersOut}
-              onChangePitcher={changeUserPitcher}
-              bases={state.bases}
-              onPickoff={attemptPickoff}
-              onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
-              battingTeam={cpuTeam}
-              balls={state.balls}
-              strikes={state.strikes}
-              key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
-            />
-          )}
+          {(() => {
+            const curPitchCount = userBats
+              ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
+              : (state.userPitchCounts[state.userPitIdx] ?? 0);
+            const stamina = clamp(100 - curPitchCount * 1.6, 0, 100);
+            const onPitchThrown = () => incPitchCount(userBats ? "cpu" : "user", userBats ? state.cpuPitIdx : state.userPitIdx);
+            return userBats ? (
+              <BatterView
+                batter={batter}
+                pitcher={pitcher}
+                onCount={advanceCount}
+                onHit={applyHit}
+                bases={state.bases}
+                onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
+                battingTeam={userTeam}
+                pitcherFatigue={curPitchCount}
+                onPitchThrown={onPitchThrown}
+                key={`bat-${state.userBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}`}
+              />
+            ) : (
+              <PitcherView
+                batter={batter}
+                pitcher={pitcher}
+                onCount={advanceCount}
+                onHit={applyHit}
+                rotation={userTeam.rotation}
+                currentIdx={state.userPitIdx}
+                usedIdx={state.userPitchersOut}
+                onChangePitcher={changeUserPitcher}
+                bases={state.bases}
+                onPickoff={attemptPickoff}
+                onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
+                battingTeam={cpuTeam}
+                balls={state.balls}
+                strikes={state.strikes}
+                pitcherFatigue={curPitchCount}
+                onPitchThrown={onPitchThrown}
+                key={`pit-${state.cpuBatIdx}-${state.balls}-${state.strikes}-${state.outs}-${state.inning}-${state.half}-${state.userPitIdx}`}
+              />
+            );
+          })()}
           <Diamond bases={state.bases} />
         </div>
         <aside className="space-y-4">
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">현재 타석</div>
-            <div className="font-bold text-lg">{batter.name}</div>
+            <BatterNamePlate batter={batter} />
             <div className="text-xs text-white/70">{POS_LABEL[batter.pos]} · {batter.bats === "L" ? "좌타" : batter.bats === "R" ? "우타" : "스위치"}</div>
             <div className="mt-2 flex gap-3 text-xs">
               <span>파워 {batter.power}</span>
@@ -522,6 +533,24 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
             <div className="font-bold text-lg">{pitcher.name}</div>
             <div className="text-xs text-white/70">{pitcher.throws === "L" ? "좌투" : "우투"} · 최고 {pitcher.velo}km/h</div>
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
+            {(() => {
+              const cnt = userBats
+                ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
+                : (state.userPitchCounts[state.userPitIdx] ?? 0);
+              const stamina = clamp(100 - cnt * 1.6, 0, 100);
+              const barColor = stamina > 60 ? "bg-emerald-400" : stamina > 30 ? "bg-yellow-400" : "bg-red-500";
+              return (
+                <div className="mt-2">
+                  <div className="flex justify-between text-[10px] text-white/60">
+                    <span>체력</span>
+                    <span>{Math.round(stamina)} · 투구수 {cnt}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${stamina}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <div className="rounded-lg bg-white/5 border border-white/10 p-3 max-h-64 overflow-y-auto">
             <div className="text-xs text-white/60 mb-2">경기 로그</div>
