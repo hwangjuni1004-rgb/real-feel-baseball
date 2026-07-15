@@ -871,23 +871,21 @@ function simulateCpuBatter(
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number },
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number },
 ): string {
   const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
   const typeMod = PITCH_CONTACT_MOD[pitchTypeName] ?? 0;
-  // 코너까지의 거리 (중심 2,2 기준) - 존 안 코너면 안타 확률 하락
-  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2)); // 0(중앙)~2(밖)
+  const cornerDist = Math.max(Math.abs(actual.col - 2), Math.abs(actual.row - 2));
   const cornerPenalty = strike ? (cornerDist === 2 ? -0.15 : cornerDist === 1 ? -0.05 : 0.05) : 0;
 
-  // 플래툰 (좌투 vs 좌타, 우투 vs 우타는 타자 불리)
   const platoon = opts?.pitcher
     ? (opts.pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05)
     : 0;
-  // 예측 성공 시 CPU 타자 유리
   const predBonus = opts?.predictedMatch ? 0.14 : -0.08;
-  // 구속 - 빠를수록 컨택 하락
   const speedPenalty = opts ? -clamp((opts.speed - 145) * 0.008, -0.05, 0.15) : 0;
+  // 투수 피로도 - 투구수가 많을수록 타자 유리 (30구부터 상승, 최대 +0.20)
+  const fatigueBoost = clamp(((opts?.fatigue ?? 0) - 30) * 0.005, 0, 0.20);
 
   const swingBase = strike ? 0.78 : 0.30;
   const swingProb = clamp(swingBase + (batter.contact - 6) * 0.03 - typeMod * 0.3 + (opts?.predictedMatch ? 0.08 : -0.05), 0.1, 0.95);
@@ -899,14 +897,14 @@ function simulateCpuBatter(
     setMsg("볼"); onCount("ball"); return "볼";
   }
   const contactProb = clamp(
-    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4,
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost,
     0.05, 0.96,
   );
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
