@@ -1010,12 +1010,14 @@ function BatterView({
         const label = strike ? "스트라이크" : "볼";
         setPhaseMsg(label);
         setLastPitch({ name: type.name, speed, result: label });
+        showOutcome(label, speed);
         onCount(strike ? "strike" : "ball");
       }
       setPitch(null);
       setReady(false);
     }, duration + 200);
   };
+
 
   const swing = () => {
     if (!pitch || swungRef.current) return;
