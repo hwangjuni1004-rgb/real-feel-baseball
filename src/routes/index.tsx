@@ -572,6 +572,37 @@ function pushRunner(bases: [boolean, boolean, boolean]): { bases: [boolean, bool
   return { bases: b, scored };
 }
 
+function BatterNamePlate({ batter }: { batter: Batter }) {
+  if (batter.legend) {
+    return (
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span
+          className="text-xl font-black italic tracking-wide"
+          style={{
+            fontFamily: "'Playfair Display', 'Noto Serif KR', Georgia, serif",
+            background: "linear-gradient(90deg,#fde047,#f59e0b,#ef4444)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            textShadow: "0 0 8px rgba(253,224,71,0.3)",
+          }}
+        >
+          {batter.name}
+        </span>
+        {batter.number != null && (
+          <span className="text-[10px] font-mono text-yellow-200/80 border border-yellow-300/40 rounded px-1">#{batter.number}</span>
+        )}
+        {batter.nickname && (
+          <span className="text-[11px] italic text-yellow-100/90" style={{ fontFamily: "'Playfair Display', serif" }}>
+            «{batter.nickname}»
+          </span>
+        )}
+        <span className="text-[9px] text-yellow-300/70">★ LEGEND</span>
+      </div>
+    );
+  }
+  return <div className="font-bold text-lg">{batter.name}</div>;
+}
+
 function TeamBadge({ team, score, active }: { team: Team; score: number; active: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${active ? "ring-2 ring-yellow-300" : ""}`} style={{ backgroundColor: team.color }}>
