@@ -729,6 +729,7 @@ function PitcherView({
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
     setPitch({ type, target, actual, speed, startedAt: Date.now(), duration });
     setPhaseMsg("공이 날아갑니다...");
+    onPitchThrown();
     const predicted = predictNextPitch();
     const matched = predicted === type.name;
     pitchHistoryRef.current.push(type.name);
@@ -736,9 +737,11 @@ function PitcherView({
     setTimeout(() => {
       const resultMsg = simulateCpuBatter(
         actual, batter, type, onCount, onHit, setPhaseMsg, showHit, triggerSwing,
-        { pitcher, predictedMatch: matched, speed },
+        { pitcher, predictedMatch: matched, speed, fatigue: pitcherFatigue },
       );
       setLastPitch({ name: type.name, speed, result: resultMsg });
+      setPitchOutcome({ text: resultMsg, speed });
+      setTimeout(() => setPitchOutcome(null), 1400);
       setPitch(null);
       setTarget(null);
       if (cpuStealRef.current) {
@@ -747,6 +750,7 @@ function PitcherView({
       }
     }, duration + 80);
   };
+
 
 
   return (
