@@ -930,7 +930,7 @@ function simulateCpuBatter(
 
 // ---------- Batter View (user bats) ----------
 function BatterView({
-  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam,
+  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul") => void;
@@ -938,6 +938,8 @@ function BatterView({
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
   battingTeam: Team;
+  pitcherFatigue: number;
+  onPitchThrown: () => void;
 }) {
   const [guessLoc, setGuessLoc] = useState<PitchLoc | null>(null);
   const [pitch, setPitch] = useState<PitchInFlight | null>(null);
