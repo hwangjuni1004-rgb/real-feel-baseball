@@ -10,6 +10,9 @@ export interface Batter {
   power: number; // 1-10
   contact: number; // 1-10
   speed?: number; // 1-10 (도루/주루 능력)
+  number?: number; // 등번호
+  nickname?: string; // 별명
+  legend?: boolean; // 레전드/영구결번급 여부
 }
 
 export interface PitchType {
