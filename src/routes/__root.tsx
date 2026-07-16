@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "KBO 홈런더비 - 실시간 야구 게임" },
+      { name: "description", content: "KBO 실제 팀·선수 기반의 투타 대결 야구 게임. 구종과 코스, 타이밍을 골라 승부하세요." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "KBO 홈런더비 - 실시간 야구 게임" },
+      { property: "og:description", content: "KBO 실제 팀·선수 기반의 투타 대결 야구 게임. 구종과 코스, 타이밍을 골라 승부하세요." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "KBO 홈런더비 - 실시간 야구 게임" },
+      { name: "twitter:description", content: "KBO 실제 팀·선수 기반의 투타 대결 야구 게임. 구종과 코스, 타이밍을 골라 승부하세요." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4d4059bc-5843-4368-a2a5-717dce0674c6/id-preview-f9f2294e--0038a2a0-79d2-4a1e-9774-66fe01a3578b.lovable.app-1784075123580.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4d4059bc-5843-4368-a2a5-717dce0674c6/id-preview-f9f2294e--0038a2a0-79d2-4a1e-9774-66fe01a3578b.lovable.app-1784075123580.png" },
     ],
     links: [
       {
