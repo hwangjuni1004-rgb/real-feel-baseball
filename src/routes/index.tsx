@@ -851,7 +851,10 @@ function PitcherView({
                     }`}
                   >
                     <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
-                    <div className="opacity-70">{p.throws === "L" ? "좌투" : "우투"} · {p.velo}km/h · 제구 {p.control}</div>
+                    <div className="opacity-70">
+                      {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
+                    </div>
+                    {p.sig && <div className="text-[10px] text-rose-300">◆ {p.sig}</div>}
                   </button>
                 );
               })}
