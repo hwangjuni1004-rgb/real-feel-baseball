@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TEAMS, POS_LABEL, type Team, type Batter, type Pitcher, type PitchType } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
