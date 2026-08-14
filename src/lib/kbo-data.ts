@@ -32,6 +32,9 @@ export interface Pitcher {
   pitches: PitchType[];
   slot?: ArmSlot; // 오버핸드 / 사이드암 / 언더핸드 (기본 over)
   sig?: string; // 대표 구종 이름
+  number?: number; // 등번호
+  nickname?: string; // 별명
+  legend?: boolean; // 레전드/영구결번급 여부
 }
 
 export const SLOT_LABEL: Record<ArmSlot, string> = {
@@ -391,10 +394,32 @@ const LEGENDS: Record<string, Batter[]> = {
   ],
 };
 
+// ---------- 레전드 투수 (투수였던 선수는 타순이 아닌 마운드로) ----------
+const LEGEND_PITCHERS: Record<string, Pitcher[]> = {
+  kia: [
+    { name: "선동열", nickname: "국보 투수", number: 18, legend: true, throws: "R", velo: 155, control: 10, pitches: [FB(155), SL(155), CB(155)] },
+    { name: "이대진", nickname: "타이거즈의 에이스", number: 31, legend: true, throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CB(152)] },
+  ],
+  lg: [
+    { name: "이상훈", nickname: "야생마", number: 47, legend: true, throws: "L", velo: 150, control: 8, pitches: [FB(150), SL(150), CB(150)] },
+  ],
+  lotte: [
+    { name: "최동원", nickname: "무쇠팔", number: 11, legend: true, throws: "R", velo: 150, control: 9, pitches: [FB(150), CB(150), SL(150)] },
+    { name: "염종석", nickname: "고교 영웅", number: 22, legend: true, throws: "R", velo: 145, control: 8, pitches: [FB(145), SL(145), CB(145)] },
+  ],
+  hanwha: [
+    { name: "정민철", nickname: "독수리의 에이스", number: 23, legend: true, throws: "R", velo: 150, control: 9, pitches: [FB(150), CB(150), SL(150)] },
+    { name: "송진우", nickname: "정신적 지주", number: 21, legend: true, throws: "L", velo: 145, control: 9, pitches: [FB(145), CH(145), CB(145)] },
+    { name: "구대성", nickname: "대성불패", number: 15, legend: true, throws: "L", velo: 148, control: 9, pitches: [FB(148), CH(148), FK(148)] },
+  ],
+};
+
 // 라인업에 레전드를 뒤에 이어 붙임 (타순이 돌면 대타로 등장)
 for (const t of TEAMS) {
   const extras = LEGENDS[t.id];
   if (extras) t.lineup = [...t.lineup, ...extras];
+  const lp = LEGEND_PITCHERS[t.id];
+  if (lp) t.rotation = [...t.rotation, ...lp];
 }
 
 
