@@ -1444,30 +1444,52 @@ function StrikeZone({
   );
 }
 
-function PitcherSvg({ throws, windup }: { throws: "L" | "R"; windup: boolean }) {
+function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot }) {
   const flip = throws === "L" ? -1 : 1;
+
+  // 폼별 팔 각도: 와인드업(뒤로) → 릴리스(앞으로)
+  const arm = {
+    over: { wind: { x: 40, y: 6 }, rel: { x: 33, y: 6 }, elbow: { x: 36, y: 12 } },
+    side: { wind: { x: 44, y: 22 }, rel: { x: 40, y: 26 }, elbow: { x: 38, y: 23 } },
+    under: { wind: { x: 40, y: 44 }, rel: { x: 36, y: 40 }, elbow: { x: 34, y: 36 } },
+  }[slot];
+
+  const hand = windup ? arm.wind : arm.rel;
+  // 상체 기울기: 사이드암은 옆으로, 언더핸드는 더 깊게
+  const lean = slot === "over" ? 0 : slot === "side" ? -16 : -26;
+  const bodyLean = windup ? lean : lean * 0.6;
+
   return (
-    <svg width="46" height="60" viewBox="0 0 46 60" style={{ transform: `scaleX(${flip})` }}>
-      {/* 유니폼 몸통 */}
-      <rect x="15" y="20" width="16" height="22" rx="3" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
-      {/* 바지 */}
-      <rect x="16" y="40" width="6" height="16" fill="#334155" />
-      <rect x="24" y="40" width="6" height="16" fill="#334155" />
-      {/* 신발 */}
-      <rect x="15" y="55" width="8" height="4" rx="1" fill="#0f172a" />
-      <rect x="23" y="55" width="8" height="4" rx="1" fill="#0f172a" />
-      {/* 머리 + 모자 */}
-      <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
-      <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
-      <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
-      {/* 던지는 팔 (와인드업 시 뒤로) */}
-      <line x1="31" y1="24" x2={windup ? 42 : 38} y2={windup ? 14 : 32}
-        stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
-      {/* 글러브 팔 */}
-      <line x1="15" y1="26" x2="8" y2="30" stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="6" cy="31" r="3" fill="#78350f" />
-      {/* 공 (와인드업) */}
-      {windup && <circle cx="42" cy="14" r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})` }}>
+      <g style={{ transform: `rotate(${bodyLean}deg)`, transformOrigin: "23px 40px", transition: "transform 150ms" }}>
+        {/* 바지 / 다리 (폼별 스탠스) */}
+        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        {/* 신발 */}
+        <ellipse cx={slot === "under" ? 9 : 14} cy="58" rx="5" ry="2.5" fill="#0f172a" />
+        <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
+        {/* 유니폼 몸통 */}
+        <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
+        {/* 머리 + 모자 */}
+        <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
+        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
+        <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
+        <polyline
+          points={`31,24 ${arm.elbow.x},${arm.elbow.y} ${hand.x},${hand.y}`}
+          fill="none"
+          stroke="#f5f5f5"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ transition: "all 120ms linear" }}
+        />
+        {/* 글러브 팔 */}
+        <line x1="16" y1="26" x2={windup ? 8 : 12} y2={windup ? 30 : 36} stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
+        <circle cx={windup ? 6 : 11} cy={windup ? 31 : 38} r="3" fill="#78350f" />
+        {/* 공 (와인드업) */}
+        {windup && <circle cx={hand.x + 2} cy={hand.y} r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+      </g>
     </svg>
   );
 }
