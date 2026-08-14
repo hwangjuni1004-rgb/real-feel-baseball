@@ -531,7 +531,12 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">투수</div>
             <div className="font-bold text-lg">{pitcher.name}</div>
-            <div className="text-xs text-white/70">{pitcher.throws === "L" ? "좌투" : "우투"} · 최고 {pitcher.velo}km/h</div>
+            <div className="text-xs text-white/70">
+              {pitcher.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[pitcher.slot ?? "over"]} · 최고 {pitcher.velo}km/h
+            </div>
+            {pitcher.sig && (
+              <div className="text-[11px] text-rose-300 font-bold">◆ 결정구: {pitcher.sig}</div>
+            )}
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
             {(() => {
               const cnt = userBats
