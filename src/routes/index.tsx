@@ -1211,7 +1211,7 @@ function StrikeZone({
     };
     animRef.current = requestAnimationFrame(anim);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [pitch]);
+  }, [pitch, pitcher?.throws, pitcher?.slot]);
 
   const batterLeft = batter?.bats === "L";
 
