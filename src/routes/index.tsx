@@ -1063,11 +1063,14 @@ function BatterView({
       setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
     }
 
+    // 상대 투수의 대표(결정구) 구종은 공략이 더 어렵다
+    const sigMod = pitcher.sig === pitch.type.name ? -0.11 : 0;
+
     const contactProb = clamp(
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -1080,6 +1083,7 @@ function BatterView({
     q += cornerAdj;
     q += platoon * 0.5;
     q += speedPen * 1.4;
+    q += sigMod * 1.2;
     q += fatigueBoost * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
