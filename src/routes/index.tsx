@@ -1223,11 +1223,16 @@ function StrikeZone({
       {pitcher && (
         <div
           className="absolute left-1/2 -translate-x-1/2 top-[6%] transition-transform duration-200"
-          style={{ transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${windup ? -8 : 0}deg)` }}
+          style={{
+            transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${
+              windup ? (pitcher.slot === "under" ? 6 : pitcher.slot === "side" ? -14 : -8) : 0
+            }deg)`,
+          }}
         >
-          <PitcherSvg throws={pitcher.throws} windup={windup} />
+          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} />
           <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
             {pitcher.name}
+            <span className="ml-1 text-[8px] text-cyan-300">{SLOT_LABEL[pitcher.slot ?? "over"]}</span>
           </div>
         </div>
       )}
