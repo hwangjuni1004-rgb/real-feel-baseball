@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TEAMS, POS_LABEL, type Team, type Batter, type Pitcher, type PitchType } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -531,7 +531,12 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">투수</div>
             <div className="font-bold text-lg">{pitcher.name}</div>
-            <div className="text-xs text-white/70">{pitcher.throws === "L" ? "좌투" : "우투"} · 최고 {pitcher.velo}km/h</div>
+            <div className="text-xs text-white/70">
+              {pitcher.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[pitcher.slot ?? "over"]} · 최고 {pitcher.velo}km/h
+            </div>
+            {pitcher.sig && (
+              <div className="text-[11px] text-rose-300 font-bold">◆ 결정구: {pitcher.sig}</div>
+            )}
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
             {(() => {
               const cnt = userBats
@@ -792,7 +797,12 @@ function PitcherView({
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               }`}
             >
-              <div>{p.name}</div>
+              <div className="flex items-center gap-1">
+                <span>{p.name}</span>
+                {pitcher.sig === p.name && (
+                  <span className="text-[9px] px-1 rounded bg-rose-500 text-white font-bold">◆ 결정구</span>
+                )}
+              </div>
               <div className="text-xs opacity-70">{p.speedMin}-{p.speedMax}km/h</div>
             </button>
           ))}
@@ -841,7 +851,10 @@ function PitcherView({
                     }`}
                   >
                     <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
-                    <div className="opacity-70">{p.throws === "L" ? "좌투" : "우투"} · {p.velo}km/h · 제구 {p.control}</div>
+                    <div className="opacity-70">
+                      {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
+                    </div>
+                    {p.sig && <div className="text-[10px] text-rose-300">◆ {p.sig}</div>}
                   </button>
                 );
               })}
@@ -897,15 +910,17 @@ function simulateCpuBatter(
     if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
     setMsg("볼"); onCount("ball"); return "볼";
   }
+  // 대표(결정구) 구종은 피안타율이 더 낮음
+  const sigMod = opts?.pitcher?.sig === pitchTypeName ? -0.11 : 0;
   const contactProb = clamp(
-    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost,
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost + sigMod,
     0.05, 0.96,
   );
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2 + sigMod * 1.2;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
@@ -1056,11 +1071,14 @@ function BatterView({
       setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return;
     }
 
+    // 상대 투수의 대표(결정구) 구종은 공략이 더 어렵다
+    const sigMod = pitcher.sig === pitch.type.name ? -0.11 : 0;
+
     const contactProb = clamp(
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -1073,6 +1091,7 @@ function BatterView({
     q += cornerAdj;
     q += platoon * 0.5;
     q += speedPen * 1.4;
+    q += sigMod * 1.2;
     q += fatigueBoost * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
@@ -1193,7 +1212,12 @@ function StrikeZone({
     setWindup(true);
     const anim = () => {
       const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
-      const startX = 2, startY = 2;
+      // 릴리스 포인트: 투구 폼 + 좌/우투에 따라 시작점이 달라짐
+      const armSide = pitcher?.throws === "L" ? -1 : 1;
+      const slot = pitcher?.slot ?? "over";
+      const sideOffset = slot === "over" ? 0.35 : slot === "side" ? 1.15 : 1.5;
+      const startX = 2 + armSide * sideOffset;
+      const startY = slot === "over" ? 1.2 : slot === "side" ? 2.1 : 3.1;
       const endX = pitch.actual.col, endY = pitch.actual.row;
       const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
@@ -1206,7 +1230,7 @@ function StrikeZone({
     };
     animRef.current = requestAnimationFrame(anim);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [pitch]);
+  }, [pitch, pitcher?.throws, pitcher?.slot]);
 
   const batterLeft = batter?.bats === "L";
 
@@ -1218,11 +1242,16 @@ function StrikeZone({
       {pitcher && (
         <div
           className="absolute left-1/2 -translate-x-1/2 top-[6%] transition-transform duration-200"
-          style={{ transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${windup ? -8 : 0}deg)` }}
+          style={{
+            transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${
+              windup ? (pitcher.slot === "under" ? 6 : pitcher.slot === "side" ? -14 : -8) : 0
+            }deg)`,
+          }}
         >
-          <PitcherSvg throws={pitcher.throws} windup={windup} />
+          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} />
           <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
             {pitcher.name}
+            <span className="ml-1 text-[8px] text-cyan-300">{SLOT_LABEL[pitcher.slot ?? "over"]}</span>
           </div>
         </div>
       )}
@@ -1434,30 +1463,52 @@ function StrikeZone({
   );
 }
 
-function PitcherSvg({ throws, windup }: { throws: "L" | "R"; windup: boolean }) {
+function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot }) {
   const flip = throws === "L" ? -1 : 1;
+
+  // 폼별 팔 각도: 와인드업(뒤로) → 릴리스(앞으로)
+  const arm = {
+    over: { wind: { x: 40, y: 6 }, rel: { x: 33, y: 6 }, elbow: { x: 36, y: 12 } },
+    side: { wind: { x: 44, y: 22 }, rel: { x: 40, y: 26 }, elbow: { x: 38, y: 23 } },
+    under: { wind: { x: 40, y: 44 }, rel: { x: 36, y: 40 }, elbow: { x: 34, y: 36 } },
+  }[slot];
+
+  const hand = windup ? arm.wind : arm.rel;
+  // 상체 기울기: 사이드암은 옆으로, 언더핸드는 더 깊게
+  const lean = slot === "over" ? 0 : slot === "side" ? -16 : -26;
+  const bodyLean = windup ? lean : lean * 0.6;
+
   return (
-    <svg width="46" height="60" viewBox="0 0 46 60" style={{ transform: `scaleX(${flip})` }}>
-      {/* 유니폼 몸통 */}
-      <rect x="15" y="20" width="16" height="22" rx="3" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
-      {/* 바지 */}
-      <rect x="16" y="40" width="6" height="16" fill="#334155" />
-      <rect x="24" y="40" width="6" height="16" fill="#334155" />
-      {/* 신발 */}
-      <rect x="15" y="55" width="8" height="4" rx="1" fill="#0f172a" />
-      <rect x="23" y="55" width="8" height="4" rx="1" fill="#0f172a" />
-      {/* 머리 + 모자 */}
-      <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
-      <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
-      <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
-      {/* 던지는 팔 (와인드업 시 뒤로) */}
-      <line x1="31" y1="24" x2={windup ? 42 : 38} y2={windup ? 14 : 32}
-        stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
-      {/* 글러브 팔 */}
-      <line x1="15" y1="26" x2="8" y2="30" stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="6" cy="31" r="3" fill="#78350f" />
-      {/* 공 (와인드업) */}
-      {windup && <circle cx="42" cy="14" r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})` }}>
+      <g style={{ transform: `rotate(${bodyLean}deg)`, transformOrigin: "23px 40px", transition: "transform 150ms" }}>
+        {/* 바지 / 다리 (폼별 스탠스) */}
+        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        {/* 신발 */}
+        <ellipse cx={slot === "under" ? 9 : 14} cy="58" rx="5" ry="2.5" fill="#0f172a" />
+        <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
+        {/* 유니폼 몸통 */}
+        <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
+        {/* 머리 + 모자 */}
+        <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
+        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
+        <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
+        <polyline
+          points={`31,24 ${arm.elbow.x},${arm.elbow.y} ${hand.x},${hand.y}`}
+          fill="none"
+          stroke="#f5f5f5"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ transition: "all 120ms linear" }}
+        />
+        {/* 글러브 팔 */}
+        <line x1="16" y1="26" x2={windup ? 8 : 12} y2={windup ? 30 : 36} stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
+        <circle cx={windup ? 6 : 11} cy={windup ? 31 : 38} r="3" fill="#78350f" />
+        {/* 공 (와인드업) */}
+        {windup && <circle cx={hand.x + 2} cy={hand.y} r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+      </g>
     </svg>
   );
 }
