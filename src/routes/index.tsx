@@ -792,7 +792,12 @@ function PitcherView({
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               }`}
             >
-              <div>{p.name}</div>
+              <div className="flex items-center gap-1">
+                <span>{p.name}</span>
+                {pitcher.sig === p.name && (
+                  <span className="text-[9px] px-1 rounded bg-rose-500 text-white font-bold">◆ 결정구</span>
+                )}
+              </div>
               <div className="text-xs opacity-70">{p.speedMin}-{p.speedMax}km/h</div>
             </button>
           ))}
