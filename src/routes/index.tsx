@@ -1193,7 +1193,12 @@ function StrikeZone({
     setWindup(true);
     const anim = () => {
       const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
-      const startX = 2, startY = 2;
+      // 릴리스 포인트: 투구 폼 + 좌/우투에 따라 시작점이 달라짐
+      const armSide = pitcher?.throws === "L" ? -1 : 1;
+      const slot = pitcher?.slot ?? "over";
+      const sideOffset = slot === "over" ? 0.35 : slot === "side" ? 1.15 : 1.5;
+      const startX = 2 + armSide * sideOffset;
+      const startY = slot === "over" ? 1.2 : slot === "side" ? 2.1 : 3.1;
       const endX = pitch.actual.col, endY = pitch.actual.row;
       const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
