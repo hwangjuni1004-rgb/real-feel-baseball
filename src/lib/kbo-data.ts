@@ -32,6 +32,9 @@ export interface Pitcher {
   pitches: PitchType[];
   slot?: ArmSlot; // 오버핸드 / 사이드암 / 언더핸드 (기본 over)
   sig?: string; // 대표 구종 이름
+  number?: number; // 등번호
+  nickname?: string; // 별명
+  legend?: boolean; // 레전드/영구결번급 여부
 }
 
 export const SLOT_LABEL: Record<ArmSlot, string> = {
@@ -330,9 +333,7 @@ export const POS_LABEL: Record<Position, string> = {
 const LEGENDS: Record<string, Batter[]> = {
   kia: [
     { name: "이종범", nickname: "바람의 아들", number: 7, pos: "SS", bats: "R", power: 8, contact: 10, speed: 10, legend: true },
-    { name: "선동열", nickname: "국보 투수", number: 18, pos: "DH", bats: "R", power: 7, contact: 8, legend: true },
     { name: "김성한", nickname: "오리 궁뎅이", number: 22, pos: "1B", bats: "R", power: 8, contact: 8, legend: true },
-    { name: "이대진", nickname: "타이거즈의 에이스", number: 31, pos: "DH", bats: "R", power: 6, contact: 7, legend: true },
     { name: "장성호", nickname: "타격 기계", number: 33, pos: "LF", bats: "L", power: 7, contact: 9, legend: true },
   ],
   samsung: [
@@ -344,7 +345,7 @@ const LEGENDS: Record<string, Batter[]> = {
   ],
   lg: [
     { name: "이병규", nickname: "적토마", number: 9, pos: "CF", bats: "L", power: 8, contact: 10, legend: true },
-    { name: "이상훈", nickname: "야생마", number: 47, pos: "DH", bats: "L", power: 6, contact: 7, legend: true },
+    
     { name: "박용택", nickname: "폭격기", number: 33, pos: "LF", bats: "L", power: 7, contact: 9, legend: true },
     { name: "김재현", nickname: "캐넌 히터", number: 7, pos: "LF", bats: "L", power: 8, contact: 8, legend: true },
     { name: "유지현", nickname: "신바람 유격수", number: 4, pos: "SS", bats: "L", power: 5, contact: 8, speed: 9, legend: true },
@@ -370,18 +371,13 @@ const LEGENDS: Record<string, Batter[]> = {
     { name: "김재현", nickname: "캐넌", number: 7, pos: "DH", bats: "L", power: 8, contact: 8, legend: true },
   ],
   lotte: [
-    { name: "최동원", nickname: "무쇠팔", number: 11, pos: "DH", bats: "R", power: 6, contact: 7, legend: true },
     { name: "이대호", nickname: "조선의 4번 타자", number: 10, pos: "1B", bats: "R", power: 10, contact: 10, legend: true },
     { name: "박정태", nickname: "악바리", number: 2, pos: "2B", bats: "R", power: 6, contact: 8, legend: true },
     { name: "마해영", nickname: "미스터 옥타곤", number: 30, pos: "LF", bats: "R", power: 9, contact: 8, legend: true },
-    { name: "염종석", nickname: "고교 영웅", number: 22, pos: "DH", bats: "R", power: 5, contact: 7, legend: true },
   ],
   hanwha: [
     { name: "장종훈", nickname: "빙그레 헐크", number: 35, pos: "1B", bats: "R", power: 10, contact: 8, legend: true },
-    { name: "정민철", nickname: "독수리의 에이스", number: 23, pos: "DH", bats: "R", power: 6, contact: 7, legend: true },
-    { name: "송진우", nickname: "정신적 지주", number: 21, pos: "DH", bats: "L", power: 6, contact: 7, legend: true },
     { name: "김태균", nickname: "김별명", number: 52, pos: "1B", bats: "R", power: 9, contact: 10, legend: true },
-    { name: "구대성", nickname: "대성불패", number: 15, pos: "DH", bats: "L", power: 5, contact: 7, legend: true },
   ],
   nc: [
     { name: "이호준", nickname: "쥬니치", number: 22, pos: "1B", bats: "R", power: 9, contact: 8, legend: true },
@@ -398,10 +394,32 @@ const LEGENDS: Record<string, Batter[]> = {
   ],
 };
 
+// ---------- 레전드 투수 (투수였던 선수는 타순이 아닌 마운드로) ----------
+const LEGEND_PITCHERS: Record<string, Pitcher[]> = {
+  kia: [
+    { name: "선동열", nickname: "국보 투수", number: 18, legend: true, throws: "R", velo: 155, control: 10, pitches: [FB(155), SL(155), CB(155)] },
+    { name: "이대진", nickname: "타이거즈의 에이스", number: 31, legend: true, throws: "R", velo: 152, control: 8, pitches: [FB(152), SL(152), CB(152)] },
+  ],
+  lg: [
+    { name: "이상훈", nickname: "야생마", number: 47, legend: true, throws: "L", velo: 150, control: 8, pitches: [FB(150), SL(150), CB(150)] },
+  ],
+  lotte: [
+    { name: "최동원", nickname: "무쇠팔", number: 11, legend: true, throws: "R", velo: 150, control: 9, pitches: [FB(150), CB(150), SL(150)] },
+    { name: "염종석", nickname: "고교 영웅", number: 22, legend: true, throws: "R", velo: 145, control: 8, pitches: [FB(145), SL(145), CB(145)] },
+  ],
+  hanwha: [
+    { name: "정민철", nickname: "독수리의 에이스", number: 23, legend: true, throws: "R", velo: 150, control: 9, pitches: [FB(150), CB(150), SL(150)] },
+    { name: "송진우", nickname: "정신적 지주", number: 21, legend: true, throws: "L", velo: 145, control: 9, pitches: [FB(145), CH(145), CB(145)] },
+    { name: "구대성", nickname: "대성불패", number: 15, legend: true, throws: "L", velo: 148, control: 9, pitches: [FB(148), CH(148), FK(148)] },
+  ],
+};
+
 // 라인업에 레전드를 뒤에 이어 붙임 (타순이 돌면 대타로 등장)
 for (const t of TEAMS) {
   const extras = LEGENDS[t.id];
   if (extras) t.lineup = [...t.lineup, ...extras];
+  const lp = LEGEND_PITCHERS[t.id];
+  if (lp) t.rotation = [...t.rotation, ...lp];
 }
 
 
@@ -422,6 +440,9 @@ const SIGS: Record<string, string> = {
   정우영: "투심", 함덕주: "커브", 고영표: "체인지업", 박영현: "포심 패스트볼",
   김택연: "포심 패스트볼", 박종훈: "커브", 김광현: "슬라이더", 곽빈: "커브",
   문동주: "포심 패스트볼", 류현진: "체인지업", 폰세: "슬라이더", 와이스: "커브",
+  // 레전드 투수
+  선동열: "슬라이더", 이대진: "포심 패스트볼", 이상훈: "슬라이더",
+  최동원: "커브", 염종석: "슬라이더", 정민철: "커브", 송진우: "체인지업", 구대성: "체인지업",
 };
 
 for (const t of TEAMS) {
