@@ -404,3 +404,35 @@ for (const t of TEAMS) {
   if (extras) t.lineup = [...t.lineup, ...extras];
 }
 
+
+// ---------- 투구 폼(암슬롯) & 대표 구종 ----------
+// 실제 KBO 투수들의 투구 폼 기준
+const SLOTS: Record<string, ArmSlot> = {
+  고영표: "side", 임기영: "side", 한현희: "side", 정우영: "side", 김대유: "side",
+  박치국: "side", 심창민: "side", 이태양: "side", 진해수: "side", 김대현: "side",
+  박명근: "side", 우강훈: "side", 김성민: "side", 노경은: "side",
+  박종훈: "under", 신재영: "under", 임정호: "under", 이우찬: "under", 백승현: "under",
+};
+
+// 대표(결정구) 구종
+const SIGS: Record<string, string> = {
+  양현종: "체인지업", 네일: "체인지업", 이의리: "슬라이더", 원태인: "체인지업",
+  임찬규: "체인지업", 손주영: "슬라이더", 최원태: "투심", 김영우: "포심 패스트볼",
+  리오스: "포심 패스트볼", 톨허스트: "슬라이더", 웰스: "커브", 유영찬: "포크볼",
+  정우영: "투심", 함덕주: "커브", 고영표: "체인지업", 박영현: "포심 패스트볼",
+  김택연: "포심 패스트볼", 박종훈: "커브", 김광현: "슬라이더", 곽빈: "커브",
+  문동주: "포심 패스트볼", 류현진: "체인지업", 폰세: "슬라이더", 와이스: "커브",
+};
+
+for (const t of TEAMS) {
+  t.rotation = t.rotation.map((p) => {
+    const slot = SLOTS[p.name] ?? "over";
+    const sig = SIGS[p.name] ?? p.pitches[Math.min(1, p.pitches.length - 1)]!.name;
+    return {
+      ...p,
+      slot,
+      sig: p.pitches.some((x) => x.name === sig) ? sig : p.pitches[0]!.name,
+      pitches: p.pitches.map((pt) => ({ ...pt, break: slotBreak(pt.break, slot) })),
+    };
+  });
+}
