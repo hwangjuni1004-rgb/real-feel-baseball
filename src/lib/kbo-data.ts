@@ -22,12 +22,33 @@ export interface PitchType {
   break: { x: number; y: number }; // 존 이동
 }
 
+export type ArmSlot = "over" | "side" | "under";
+
 export interface Pitcher {
   name: string;
   throws: "L" | "R";
   velo: number; // 최고 구속
   control: number; // 1-10
   pitches: PitchType[];
+  slot?: ArmSlot; // 오버핸드 / 사이드암 / 언더핸드 (기본 over)
+  sig?: string; // 대표 구종 이름
+}
+
+export const SLOT_LABEL: Record<ArmSlot, string> = {
+  over: "오버핸드",
+  side: "사이드암",
+  under: "언더핸드",
+};
+
+// 투구 폼별 궤적 보정: 사이드암은 좌우 무브먼트 크고 종움직임 작음,
+// 언더핸드는 공이 떠오르는 느낌(종 무브먼트 반전 + 좌우 큼)
+export function slotBreak(
+  base: { x: number; y: number },
+  slot: ArmSlot = "over",
+): { x: number; y: number } {
+  if (slot === "side") return { x: base.x * 1.75, y: base.y * 0.55 };
+  if (slot === "under") return { x: base.x * 1.5, y: base.y * 0.45 - 0.9 };
+  return { x: base.x, y: base.y * 1.1 };
 }
 
 export interface Team {
