@@ -902,15 +902,17 @@ function simulateCpuBatter(
     if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
     setMsg("볼"); onCount("ball"); return "볼";
   }
+  // 대표(결정구) 구종은 피안타율이 더 낮음
+  const sigMod = opts?.pitcher?.sig === pitchTypeName ? -0.11 : 0;
   const contactProb = clamp(
-    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost,
+    (strike ? 0.78 : 0.4) + (batter.contact - 6) * 0.04 + typeMod + platoon + predBonus + speedPenalty + cornerPenalty * 0.4 + fatigueBoost + sigMod,
     0.05, 0.96,
   );
   if (Math.random() > contactProb) {
     setMsg("헛스윙!"); onCount("strike"); return "헛스윙";
   }
   const power = batter.power;
-  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2;
+  let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2 + sigMod * 1.2;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     if (Math.random() < 0.5) { setMsg("플라이 아웃"); onHit("fly"); return "플라이"; }
