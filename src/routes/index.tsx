@@ -1345,20 +1345,43 @@ function StrikeZone({
         </div>
       )}
 
-      {/* 날아오는 공 */}
+      {/* 날아오는 공 (3D 원근 + 그라운드 그림자) */}
       {ballPos && (
-        <div
-          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none z-30"
-          style={{
-            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
-            transform: `translate(-50%, -50%) scale(${ballPos.scale})`,
-            boxShadow: "0 0 20px rgba(255,255,255,0.8)",
-          }}
-        >
-          <div className="absolute inset-0 rounded-full border-2 border-red-500/70" style={{ clipPath: "inset(45% 0 45% 0)" }} />
-        </div>
+        <>
+          {/* 지면 그림자: 공이 가까워질수록 아래로 크게 */}
+          <div
+            className="absolute rounded-[50%] bg-black/45 pointer-events-none z-20"
+            style={{
+              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+              top: `calc(${(ballPos.y / 5) * 100}% + 10% + ${18 + (1 - ballPos.z) * 26}px)`,
+              width: `${16 * ballPos.scale + 4}px`,
+              height: `${6 * ballPos.scale + 2}px`,
+              transform: "translate(-50%, -50%)",
+              filter: `blur(${1 + ballPos.z * 3}px)`,
+              opacity: 0.25 + (1 - ballPos.z) * 0.45,
+            }}
+          />
+          {/* 3D 구체 */}
+          <div
+            className="absolute w-6 h-6 rounded-full pointer-events-none z-30"
+            style={{
+              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+              top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+              transform: `translate(-50%, -50%) scale(${ballPos.scale}) rotateZ(${(1 - ballPos.z) * 540}deg)`,
+              transformStyle: "preserve-3d",
+              background:
+                "radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 45%, #94a3b8 78%, #475569 100%)",
+              boxShadow: `0 0 ${10 + (1 - ballPos.z) * 26}px rgba(255,255,255,${0.35 + (1 - ballPos.z) * 0.5}), inset -3px -4px 6px rgba(0,0,0,0.35)`,
+            }}
+          >
+            <div className="absolute inset-0 rounded-full border-2 border-red-500/70"
+              style={{ clipPath: "inset(42% 0 42% 0)", transform: "rotateX(55deg)" }} />
+            <div className="absolute inset-0 rounded-full border border-red-500/40"
+              style={{ clipPath: "inset(0 42% 0 42%)", transform: "rotateY(55deg)" }} />
+          </div>
+        </>
       )}
+
 
       {pitch && showActual === undefined && (
         <div className="absolute top-1 left-2 text-[10px] text-white/80 z-30 bg-black/40 px-1 rounded">
