@@ -1256,10 +1256,15 @@ function StrikeZone({
       const endX = pitch.actual.col, endY = pitch.actual.row;
       const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
-      const x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
-      const y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
-      const scale = 0.35 + t * 0.9;
-      setBallPos({ x, y, scale });
+      const bx = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
+      const by = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
+      // ---- 3D 원근 투영: 공이 멀리(마운드)서 소실점에 모여 있다가 앞으로 튀어나옴 ----
+      const vpX = 2, vpY = 0.9; // 소실점(마운드 릴리스 지점)
+      const persp = 0.26 + 0.74 * Math.pow(t, 1.55);
+      const x = vpX + (bx - vpX) * persp;
+      const y = vpY + (by - vpY) * persp;
+      const scale = 0.16 + 1.15 * Math.pow(t, 2.2); // 거리에 따른 크기(원근)
+      setBallPos({ x, y, scale, z: 1 - t });
       if (t > 0.15) setWindup(false);
       if (t < 1) animRef.current = requestAnimationFrame(anim);
     };
