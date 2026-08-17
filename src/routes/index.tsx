@@ -885,7 +885,11 @@ function PitcherView({
                         : "bg-white/10 hover:bg-white/20 text-white"
                     }`}
                   >
-                    <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
+                    <div className="font-bold">
+                      {p.legend ? <LegendName name={p.name} size="xs" /> : p.name}
+                      {p.legend && p.nickname && <span className="ml-1 text-[9px] italic text-yellow-100/80">«{p.nickname}»</span>}
+                      {isCurrent && " (등판중)"}
+                    </div>
                     <div className="opacity-70">
                       {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
                     </div>
