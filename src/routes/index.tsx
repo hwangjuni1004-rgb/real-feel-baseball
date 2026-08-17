@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -530,7 +530,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
           </div>
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">투수</div>
-            <div className="font-bold text-lg">{pitcher.name}</div>
+            <PitcherNamePlate pitcher={pitcher} />
             <div className="text-xs text-white/70">
               {pitcher.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[pitcher.slot ?? "over"]} · 최고 {pitcher.velo}km/h
             </div>
@@ -606,6 +606,41 @@ function BatterNamePlate({ batter }: { batter: Batter }) {
     );
   }
   return <div className="font-bold text-lg">{batter.name}</div>;
+}
+
+function LegendName({ name, size = "xl" }: { name: string; size?: "xl" | "xs" }) {
+  return (
+    <span
+      className={`${size === "xl" ? "text-xl" : "text-[10px]"} font-black italic tracking-wide`}
+      style={{
+        fontFamily: "'Playfair Display', 'Noto Serif KR', Georgia, serif",
+        background: "linear-gradient(90deg,#fde047,#f59e0b,#ef4444)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        textShadow: "0 0 8px rgba(253,224,71,0.35)",
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+function PitcherNamePlate({ pitcher }: { pitcher: Pitcher }) {
+  if (!pitcher.legend) return <div className="font-bold text-lg">{pitcher.name}</div>;
+  return (
+    <div className="flex items-baseline gap-2 flex-wrap">
+      <LegendName name={pitcher.name} />
+      {pitcher.number != null && (
+        <span className="text-[10px] font-mono text-yellow-200/80 border border-yellow-300/40 rounded px-1">#{pitcher.number}</span>
+      )}
+      {pitcher.nickname && (
+        <span className="text-[11px] italic text-yellow-100/90" style={{ fontFamily: "'Playfair Display', serif" }}>
+          «{pitcher.nickname}»
+        </span>
+      )}
+      <span className="text-[9px] text-yellow-300/70">★ LEGEND</span>
+    </div>
+  );
 }
 
 function TeamBadge({ team, score, active }: { team: Team; score: number; active: boolean }) {
@@ -850,7 +885,11 @@ function PitcherView({
                         : "bg-white/10 hover:bg-white/20 text-white"
                     }`}
                   >
-                    <div className="font-bold">{p.name} {isCurrent && "(등판중)"}</div>
+                    <div className="font-bold">
+                      {p.legend ? <LegendName name={p.name} size="xs" /> : p.name}
+                      {p.legend && p.nickname && <span className="ml-1 text-[9px] italic text-yellow-100/80">«{p.nickname}»</span>}
+                      {isCurrent && " (등판중)"}
+                    </div>
                     <div className="opacity-70">
                       {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
                     </div>
@@ -1203,7 +1242,7 @@ function StrikeZone({
   battingTeam?: Team;
   pitchOutcome?: { text: string; speed: number } | null;
 }) {
-  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
+  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
   const [windup, setWindup] = useState(false);
 
@@ -1221,10 +1260,15 @@ function StrikeZone({
       const endX = pitch.actual.col, endY = pitch.actual.row;
       const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
-      const x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
-      const y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
-      const scale = 0.35 + t * 0.9;
-      setBallPos({ x, y, scale });
+      const bx = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
+      const by = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
+      // ---- 3D 원근 투영: 공이 멀리(마운드)서 소실점에 모여 있다가 앞으로 튀어나옴 ----
+      const vpX = 2, vpY = 0.9; // 소실점(마운드 릴리스 지점)
+      const persp = 0.26 + 0.74 * Math.pow(t, 1.55);
+      const x = vpX + (bx - vpX) * persp;
+      const y = vpY + (by - vpY) * persp;
+      const scale = 0.16 + 1.15 * Math.pow(t, 2.2); // 거리에 따른 크기(원근)
+      setBallPos({ x, y, scale, z: 1 - t });
       if (t > 0.15) setWindup(false);
       if (t < 1) animRef.current = requestAnimationFrame(anim);
     };
@@ -1248,11 +1292,14 @@ function StrikeZone({
             }deg)`,
           }}
         >
-          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} />
+          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} face={pitcher.face} legend={pitcher.legend} />
           <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
-            {pitcher.name}
-            <span className="ml-1 text-[8px] text-cyan-300">{SLOT_LABEL[pitcher.slot ?? "over"]}</span>
+            {pitcher.legend ? <LegendName name={pitcher.name} size="xs" /> : pitcher.name}
+            <span className="ml-1 text-[8px] text-cyan-300">
+              {pitcher.throws === "L" ? "좌" : "우"}·{SLOT_LABEL[pitcher.slot ?? "over"]}
+            </span>
           </div>
+
         </div>
       )}
 
@@ -1302,20 +1349,43 @@ function StrikeZone({
         </div>
       )}
 
-      {/* 날아오는 공 */}
+      {/* 날아오는 공 (3D 원근 + 그라운드 그림자) */}
       {ballPos && (
-        <div
-          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none z-30"
-          style={{
-            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
-            transform: `translate(-50%, -50%) scale(${ballPos.scale})`,
-            boxShadow: "0 0 20px rgba(255,255,255,0.8)",
-          }}
-        >
-          <div className="absolute inset-0 rounded-full border-2 border-red-500/70" style={{ clipPath: "inset(45% 0 45% 0)" }} />
-        </div>
+        <>
+          {/* 지면 그림자: 공이 가까워질수록 아래로 크게 */}
+          <div
+            className="absolute rounded-[50%] bg-black/45 pointer-events-none z-20"
+            style={{
+              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+              top: `calc(${(ballPos.y / 5) * 100}% + 10% + ${18 + (1 - ballPos.z) * 26}px)`,
+              width: `${16 * ballPos.scale + 4}px`,
+              height: `${6 * ballPos.scale + 2}px`,
+              transform: "translate(-50%, -50%)",
+              filter: `blur(${1 + ballPos.z * 3}px)`,
+              opacity: 0.25 + (1 - ballPos.z) * 0.45,
+            }}
+          />
+          {/* 3D 구체 */}
+          <div
+            className="absolute w-6 h-6 rounded-full pointer-events-none z-30"
+            style={{
+              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
+              top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+              transform: `translate(-50%, -50%) scale(${ballPos.scale}) rotateZ(${(1 - ballPos.z) * 540}deg)`,
+              transformStyle: "preserve-3d",
+              background:
+                "radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 45%, #94a3b8 78%, #475569 100%)",
+              boxShadow: `0 0 ${10 + (1 - ballPos.z) * 26}px rgba(255,255,255,${0.35 + (1 - ballPos.z) * 0.5}), inset -3px -4px 6px rgba(0,0,0,0.35)`,
+            }}
+          >
+            <div className="absolute inset-0 rounded-full border-2 border-red-500/70"
+              style={{ clipPath: "inset(42% 0 42% 0)", transform: "rotateX(55deg)" }} />
+            <div className="absolute inset-0 rounded-full border border-red-500/40"
+              style={{ clipPath: "inset(0 42% 0 42%)", transform: "rotateY(55deg)" }} />
+          </div>
+        </>
       )}
+
 
       {pitch && showActual === undefined && (
         <div className="absolute top-1 left-2 text-[10px] text-white/80 z-30 bg-black/40 px-1 rounded">
@@ -1463,7 +1533,7 @@ function StrikeZone({
   );
 }
 
-function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot }) {
+function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot; face?: PitcherFace; legend?: boolean }) {
   const flip = throws === "L" ? -1 : 1;
 
   // 폼별 팔 각도: 와인드업(뒤로) → 릴리스(앞으로)
@@ -1489,10 +1559,22 @@ function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; wind
         <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
         {/* 유니폼 몸통 */}
         <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
-        {/* 머리 + 모자 */}
-        <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
+        {/* 머리 + 모자 + 얼굴 특징 */}
+        {face?.longHair && <path d="M16 14 Q15 24 19 26 L27 26 Q31 24 30 14 Z" fill="#1b1b1b" />}
+        <circle cx="23" cy="14" r="6" fill={face?.skin ?? "#f5d5b0"} />
+        {face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
+        {face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
+        {face?.glasses && (
+          <g stroke="#111" strokeWidth="0.7" fill="rgba(255,255,255,0.35)">
+            <circle cx="21" cy="14" r="1.9" />
+            <circle cx="26" cy="14" r="1.9" />
+            <line x1="22.9" y1="14" x2="24.1" y2="14" />
+          </g>
+        )}
+        {face?.headband && <rect x="17" y="11.4" width="12" height="1.8" fill="#dc2626" />}
         <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
         <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        {legend && <circle cx="23" cy="14" r="9.5" fill="none" stroke="rgba(253,224,71,0.55)" strokeWidth="0.8" />}
         {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
         <polyline
           points={`31,24 ${arm.elbow.x},${arm.elbow.y} ${hand.x},${hand.y}`}

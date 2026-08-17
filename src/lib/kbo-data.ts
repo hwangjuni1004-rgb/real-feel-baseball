@@ -24,6 +24,15 @@ export interface PitchType {
 
 export type ArmSlot = "over" | "side" | "under";
 
+export interface PitcherFace {
+  glasses?: boolean;
+  beard?: boolean;
+  mustache?: boolean;
+  longHair?: boolean;
+  headband?: boolean;
+  skin?: string;
+}
+
 export interface Pitcher {
   name: string;
   throws: "L" | "R";
@@ -35,7 +44,9 @@ export interface Pitcher {
   number?: number; // 등번호
   nickname?: string; // 별명
   legend?: boolean; // 레전드/영구결번급 여부
+  face?: PitcherFace; // 얼굴 특징 (안경/수염/장발 등)
 }
+
 
 export const SLOT_LABEL: Record<ArmSlot, string> = {
   over: "오버핸드",
@@ -153,6 +164,7 @@ export const TEAMS: Team[] = [
       { name: "정우영", throws: "R", velo: 152, control: 7, pitches: [FB(152), TB(152), SL(152)] },
       { name: "박명근", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
       { name: "백승현", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), CH(150)] },
+      { name: "김연수", throws: "L", velo: 147, control: 7, pitches: [FB(147), SL(147), CH(147)] },
       { name: "이우찬", throws: "L", velo: 144, control: 7, pitches: [FB(144), SL(144), CH(144)] },
       { name: "성동현", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CB(148)] },
       { name: "김대현", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
@@ -429,7 +441,21 @@ const SLOTS: Record<string, ArmSlot> = {
   고영표: "side", 임기영: "side", 한현희: "side", 정우영: "side", 김대유: "side",
   박치국: "side", 심창민: "side", 이태양: "side", 진해수: "side", 김대현: "side",
   박명근: "side", 우강훈: "side", 김성민: "side", 노경은: "side",
+  김상수: "side", 문성현: "side", 김재윤: "side", 장현식: "side", 최지강: "side",
+  이승현: "side", 서진용: "side", 김진성: "side", 박준영: "side",
   박종훈: "under", 신재영: "under", 임정호: "under", 이우찬: "under", 백승현: "under",
+  김윤수: "under",
+};
+
+// 실제 투구손 보정 (좌완/우완)
+const THROWS: Record<string, "L" | "R"> = {
+  김연수: "L", 손주영: "L", 김윤식: "L", 함덕주: "L", 진해수: "L", 이우찬: "L",
+  이상영: "L", 송승기: "L", 곽도규: "L", 이의리: "L", 양현종: "L", 코너: "L",
+  엘리아스: "L", 벤자민: "L", 김광현: "L", 류현진: "L", 임정호: "L", 김대유: "L",
+  최원태: "R", 임찬규: "R", 리오스: "R", 김영우: "R", 유영찬: "R", 정우영: "R",
+  박명근: "R", 백승현: "R", 성동현: "R", 김대현: "R", 우강훈: "R", 이지강: "R",
+  치리노스: "R", 톨허스트: "R", 웰스: "R", 고영표: "R", 박영현: "R", 소형준: "R",
+  곽빈: "R", 김택연: "R", 문동주: "R", 원태인: "R", 네일: "R", 박종훈: "R",
 };
 
 // 대표(결정구) 구종
@@ -440,20 +466,53 @@ const SIGS: Record<string, string> = {
   정우영: "투심", 함덕주: "커브", 고영표: "체인지업", 박영현: "포심 패스트볼",
   김택연: "포심 패스트볼", 박종훈: "커브", 김광현: "슬라이더", 곽빈: "커브",
   문동주: "포심 패스트볼", 류현진: "체인지업", 폰세: "슬라이더", 와이스: "커브",
+  김연수: "슬라이더",
   // 레전드 투수
   선동열: "슬라이더", 이대진: "포심 패스트볼", 이상훈: "슬라이더",
   최동원: "커브", 염종석: "슬라이더", 정민철: "커브", 송진우: "체인지업", 구대성: "체인지업",
 };
 
+// 실제 얼굴 특징 (유명 선수 위주)
+const FACES: Record<string, PitcherFace> = {
+  선동열: { mustache: true },
+  최동원: { glasses: true },
+  이상훈: { longHair: true, headband: true },
+  구대성: { mustache: true },
+  송진우: { mustache: true },
+  정민철: { glasses: false, mustache: true },
+  이대진: { mustache: true },
+  염종석: { glasses: true },
+  양현종: { beard: true },
+  김광현: { beard: true },
+  류현진: { beard: true },
+  네일: { beard: true, skin: "#e9c49a" },
+  리오스: { beard: true, skin: "#8d5a3b" },
+  엘리아스: { beard: true, skin: "#8d5a3b" },
+  쿠에바스: { beard: true, mustache: true, skin: "#a9714b" },
+  고영표: { glasses: false },
+  정우영: { beard: true },
+  박종훈: { longHair: true },
+};
+
 for (const t of TEAMS) {
   t.rotation = t.rotation.map((p) => {
     const slot = SLOTS[p.name] ?? "over";
-    const sig = SIGS[p.name] ?? p.pitches[Math.min(1, p.pitches.length - 1)]!.name;
+    const throws = THROWS[p.name] ?? p.throws;
+    const sigRaw = SIGS[p.name] ?? p.pitches[Math.min(1, p.pitches.length - 1)]!.name;
+    const sig = p.pitches.some((x) => x.name === sigRaw) ? sigRaw : p.pitches[0]!.name;
     return {
       ...p,
       slot,
-      sig: p.pitches.some((x) => x.name === sig) ? sig : p.pitches[0]!.name,
-      pitches: p.pitches.map((pt) => ({ ...pt, break: slotBreak(pt.break, slot) })),
+      throws,
+      sig,
+      face: FACES[p.name] ?? p.face,
+      pitches: p.pitches.map((pt) => {
+        const b = slotBreak(pt.break, slot);
+        // 결정구는 무브먼트를 크게 (더 예리하게 휘어짐)
+        const k = pt.name === sig ? 1.75 : 1;
+        return { ...pt, break: { x: b.x * k, y: b.y * k } };
+      }),
     };
   });
 }
+
