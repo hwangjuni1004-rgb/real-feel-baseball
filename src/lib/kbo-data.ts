@@ -24,6 +24,15 @@ export interface PitchType {
 
 export type ArmSlot = "over" | "side" | "under";
 
+export interface PitcherFace {
+  glasses?: boolean;
+  beard?: boolean;
+  mustache?: boolean;
+  longHair?: boolean;
+  headband?: boolean;
+  skin?: string;
+}
+
 export interface Pitcher {
   name: string;
   throws: "L" | "R";
@@ -35,7 +44,9 @@ export interface Pitcher {
   number?: number; // 등번호
   nickname?: string; // 별명
   legend?: boolean; // 레전드/영구결번급 여부
+  face?: PitcherFace; // 얼굴 특징 (안경/수염/장발 등)
 }
+
 
 export const SLOT_LABEL: Record<ArmSlot, string> = {
   over: "오버핸드",
