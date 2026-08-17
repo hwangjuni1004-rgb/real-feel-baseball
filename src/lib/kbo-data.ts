@@ -444,7 +444,7 @@ const SLOTS: Record<string, ArmSlot> = {
   김상수: "side", 문성현: "side", 김재윤: "side", 장현식: "side", 최지강: "side",
   이승현: "side", 서진용: "side", 김진성: "side", 박준영: "side",
   박종훈: "under", 신재영: "under", 임정호: "under", 이우찬: "under", 백승현: "under",
-  김윤수: "under", 이닝훈: "under",
+  김윤수: "under",
 };
 
 // 실제 투구손 보정 (좌완/우완)
