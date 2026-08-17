@@ -1288,11 +1288,14 @@ function StrikeZone({
             }deg)`,
           }}
         >
-          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} />
+          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} face={pitcher.face} legend={pitcher.legend} />
           <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
-            {pitcher.name}
-            <span className="ml-1 text-[8px] text-cyan-300">{SLOT_LABEL[pitcher.slot ?? "over"]}</span>
+            {pitcher.legend ? <LegendName name={pitcher.name} size="xs" /> : pitcher.name}
+            <span className="ml-1 text-[8px] text-cyan-300">
+              {pitcher.throws === "L" ? "좌" : "우"}·{SLOT_LABEL[pitcher.slot ?? "over"]}
+            </span>
           </div>
+
         </div>
       )}
 
