@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1529,7 +1529,7 @@ function StrikeZone({
   );
 }
 
-function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot }) {
+function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot; face?: PitcherFace; legend?: boolean }) {
   const flip = throws === "L" ? -1 : 1;
 
   // 폼별 팔 각도: 와인드업(뒤로) → 릴리스(앞으로)
@@ -1555,10 +1555,22 @@ function PitcherSvg({ throws, windup, slot = "over" }: { throws: "L" | "R"; wind
         <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
         {/* 유니폼 몸통 */}
         <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
-        {/* 머리 + 모자 */}
-        <circle cx="23" cy="14" r="6" fill="#f5d5b0" />
+        {/* 머리 + 모자 + 얼굴 특징 */}
+        {face?.longHair && <path d="M16 14 Q15 24 19 26 L27 26 Q31 24 30 14 Z" fill="#1b1b1b" />}
+        <circle cx="23" cy="14" r="6" fill={face?.skin ?? "#f5d5b0"} />
+        {face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
+        {face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
+        {face?.glasses && (
+          <g stroke="#111" strokeWidth="0.7" fill="rgba(255,255,255,0.35)">
+            <circle cx="21" cy="14" r="1.9" />
+            <circle cx="26" cy="14" r="1.9" />
+            <line x1="22.9" y1="14" x2="24.1" y2="14" />
+          </g>
+        )}
+        {face?.headband && <rect x="17" y="11.4" width="12" height="1.8" fill="#dc2626" />}
         <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
         <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        {legend && <circle cx="23" cy="14" r="9.5" fill="none" stroke="rgba(253,224,71,0.55)" strokeWidth="0.8" />}
         {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
         <polyline
           points={`31,24 ${arm.elbow.x},${arm.elbow.y} ${hand.x},${hand.y}`}
