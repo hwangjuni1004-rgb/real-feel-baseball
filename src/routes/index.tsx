@@ -1238,7 +1238,7 @@ function StrikeZone({
   battingTeam?: Team;
   pitchOutcome?: { text: string; speed: number } | null;
 }) {
-  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number } | null>(null);
+  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
   const [windup, setWindup] = useState(false);
 
