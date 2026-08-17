@@ -608,6 +608,41 @@ function BatterNamePlate({ batter }: { batter: Batter }) {
   return <div className="font-bold text-lg">{batter.name}</div>;
 }
 
+function LegendName({ name, size = "xl" }: { name: string; size?: "xl" | "xs" }) {
+  return (
+    <span
+      className={`${size === "xl" ? "text-xl" : "text-[10px]"} font-black italic tracking-wide`}
+      style={{
+        fontFamily: "'Playfair Display', 'Noto Serif KR', Georgia, serif",
+        background: "linear-gradient(90deg,#fde047,#f59e0b,#ef4444)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        textShadow: "0 0 8px rgba(253,224,71,0.35)",
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+function PitcherNamePlate({ pitcher }: { pitcher: Pitcher }) {
+  if (!pitcher.legend) return <div className="font-bold text-lg">{pitcher.name}</div>;
+  return (
+    <div className="flex items-baseline gap-2 flex-wrap">
+      <LegendName name={pitcher.name} />
+      {pitcher.number != null && (
+        <span className="text-[10px] font-mono text-yellow-200/80 border border-yellow-300/40 rounded px-1">#{pitcher.number}</span>
+      )}
+      {pitcher.nickname && (
+        <span className="text-[11px] italic text-yellow-100/90" style={{ fontFamily: "'Playfair Display', serif" }}>
+          «{pitcher.nickname}»
+        </span>
+      )}
+      <span className="text-[9px] text-yellow-300/70">★ LEGEND</span>
+    </div>
+  );
+}
+
 function TeamBadge({ team, score, active }: { team: Team; score: number; active: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${active ? "ring-2 ring-yellow-300" : ""}`} style={{ backgroundColor: team.color }}>
