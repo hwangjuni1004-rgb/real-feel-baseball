@@ -530,7 +530,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
           </div>
           <div className="rounded-lg bg-white/5 border border-white/10 p-3">
             <div className="text-xs text-white/60 mb-2">투수</div>
-            <div className="font-bold text-lg">{pitcher.name}</div>
+            <PitcherNamePlate pitcher={pitcher} />
             <div className="text-xs text-white/70">
               {pitcher.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[pitcher.slot ?? "over"]} · 최고 {pitcher.velo}km/h
             </div>
