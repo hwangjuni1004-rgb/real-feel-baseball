@@ -905,14 +905,14 @@ function PitcherView({
   );
 }
 
-// 구종별 컨택 난이도 (직구 쉽고, 변화구일수록 어려움)
+// 구종별 컨택 난이도 (포심 버프: 직구도 쉽지 않게, 변화구일수록 헛스윙↑)
 const PITCH_CONTACT_MOD: Record<string, number> = {
-  "포심 패스트볼": 0.15,
-  "투심": 0.05,
-  "체인지업": -0.10,
-  "슬라이더": -0.18,
-  "커브": -0.22,
-  "포크볼": -0.28,
+  "포심 패스트볼": 0.02,
+  "투심": -0.05,
+  "체인지업": -0.16,
+  "슬라이더": -0.25,
+  "커브": -0.30,
+  "포크볼": -0.37,
 };
 
 function simulateCpuBatter(
@@ -1098,6 +1098,8 @@ function BatterView({
     const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
     const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
     const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
+    // 구종별 컨택 보정 (포심 버프 + 변화구 헛스윙↑)
+    const typeMod = PITCH_CONTACT_MOD[pitch.type.name] ?? 0;
     // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
     const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
     const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
@@ -1117,7 +1119,7 @@ function BatterView({
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod + typeMod,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -1132,6 +1134,7 @@ function BatterView({
     q += speedPen * 1.4;
     q += sigMod * 1.2;
     q += fatigueBoost * 1.3;
+    q += typeMod * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
