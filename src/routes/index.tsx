@@ -1119,7 +1119,7 @@ function BatterView({
       (timing === "perfect" ? 0.95 : timing === "good" ? 0.78 : 0.42) *
       (0.55 + zoneMatch * 0.45) *
       (strike ? 1 : chaseSkill) +
-      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod,
+      platoon + speedPen + cornerAdj * 0.3 + fatigueBoost + sigMod + typeMod,
       0.05, 0.98,
     );
     if (Math.random() > contactProb) { setPhaseMsg("헛스윙!"); record("헛스윙"); onCount("strike"); return; }
@@ -1134,6 +1134,7 @@ function BatterView({
     q += speedPen * 1.4;
     q += sigMod * 1.2;
     q += fatigueBoost * 1.3;
+    q += typeMod * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
