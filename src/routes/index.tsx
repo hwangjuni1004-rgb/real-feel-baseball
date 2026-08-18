@@ -1098,6 +1098,8 @@ function BatterView({
     const cornerDist = Math.max(Math.abs(pitch.actual.col - 2), Math.abs(pitch.actual.row - 2));
     const cornerAdj = strike ? (cornerDist === 2 ? -0.12 : cornerDist === 1 ? -0.04 : 0.06) : 0;
     const platoon = pitcher.throws === batter.bats ? -0.06 : batter.bats === "S" ? 0.01 : 0.05;
+    // 구종별 컨택 보정 (포심 버프 + 변화구 헛스윙↑)
+    const typeMod = PITCH_CONTACT_MOD[pitch.type.name] ?? 0;
     // 구속 페널티 강화 - 150+ 구간에서 급격히 하락
     const speedPen = -clamp((pitch.speed - 143) * 0.010, -0.04, 0.20);
     const chaseSkill = 0.55 + (batter.contact - 5) * 0.06;
