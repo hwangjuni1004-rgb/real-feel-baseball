@@ -164,7 +164,6 @@ export const TEAMS: Team[] = [
       { name: "정우영", throws: "R", velo: 152, control: 7, pitches: [FB(152), TB(152), SL(152)] },
       { name: "박명근", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), FK(150)] },
       { name: "백승현", throws: "R", velo: 150, control: 7, pitches: [FB(150), SL(150), CH(150)] },
-      { name: "김연수", throws: "L", velo: 147, control: 7, pitches: [FB(147), SL(147), CH(147)] },
       { name: "이우찬", throws: "L", velo: 144, control: 7, pitches: [FB(144), SL(144), CH(144)] },
       { name: "성동현", throws: "R", velo: 148, control: 7, pitches: [FB(148), SL(148), CB(148)] },
       { name: "김대현", throws: "R", velo: 149, control: 7, pitches: [FB(149), SL(149), FK(149)] },
@@ -414,6 +413,7 @@ const LEGEND_PITCHERS: Record<string, Pitcher[]> = {
   ],
   lg: [
     { name: "이상훈", nickname: "야생마", number: 47, legend: true, throws: "L", velo: 150, control: 8, pitches: [FB(150), SL(150), CB(150)] },
+    { name: "김용수", nickname: "노송", number: 41, legend: true, throws: "R", velo: 148, control: 9, pitches: [FB(148), SL(148), CH(148)] },
   ],
   lotte: [
     { name: "최동원", nickname: "무쇠팔", number: 11, legend: true, throws: "R", velo: 150, control: 9, pitches: [FB(150), CB(150), SL(150)] },
@@ -449,7 +449,7 @@ const SLOTS: Record<string, ArmSlot> = {
 
 // 실제 투구손 보정 (좌완/우완)
 const THROWS: Record<string, "L" | "R"> = {
-  김연수: "L", 손주영: "L", 김윤식: "L", 함덕주: "L", 진해수: "L", 이우찬: "L",
+  손주영: "L", 김윤식: "L", 함덕주: "L", 진해수: "L", 이우찬: "L",
   이상영: "L", 송승기: "L", 곽도규: "L", 이의리: "L", 양현종: "L", 코너: "L",
   엘리아스: "L", 벤자민: "L", 김광현: "L", 류현진: "L", 임정호: "L", 김대유: "L",
   최원태: "R", 임찬규: "R", 리오스: "R", 김영우: "R", 유영찬: "R", 정우영: "R",
@@ -466,10 +466,9 @@ const SIGS: Record<string, string> = {
   정우영: "투심", 함덕주: "커브", 고영표: "체인지업", 박영현: "포심 패스트볼",
   김택연: "포심 패스트볼", 박종훈: "커브", 김광현: "슬라이더", 곽빈: "커브",
   문동주: "포심 패스트볼", 류현진: "체인지업", 폰세: "슬라이더", 와이스: "커브",
-  김연수: "슬라이더",
   // 레전드 투수
   선동열: "슬라이더", 이대진: "포심 패스트볼", 이상훈: "슬라이더",
-  최동원: "커브", 염종석: "슬라이더", 정민철: "커브", 송진우: "체인지업", 구대성: "체인지업",
+  김용수: "슬라이더", 최동원: "커브", 염종석: "슬라이더", 정민철: "커브", 송진우: "체인지업", 구대성: "체인지업",
 };
 
 // 실제 얼굴 특징 (유명 선수 위주)
