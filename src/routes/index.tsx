@@ -162,7 +162,15 @@ interface GameState {
   cpuPitchersOut: number[];
   userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
   cpuPitchCounts: number[];
+  userPitOuts: number[]; // 각 투수가 잡은 아웃 수 (이닝 계산용)
+  cpuPitOuts: number[];
+  userPitRuns: number[]; // 각 투수의 실점
+  cpuPitRuns: number[];
   log: string[];
+}
+
+export function formatIP(outs: number) {
+  return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
 function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
@@ -184,6 +192,10 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     cpuPitchersOut: [],
     userPitchCounts: userTeam.rotation.map(() => 0),
     cpuPitchCounts: cpuTeam.rotation.map(() => 0),
+    userPitOuts: userTeam.rotation.map(() => 0),
+    cpuPitOuts: cpuTeam.rotation.map(() => 0),
+    userPitRuns: userTeam.rotation.map(() => 0),
+    cpuPitRuns: cpuTeam.rotation.map(() => 0),
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
 
@@ -270,6 +282,50 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     });
   };
 
+  // ---- 투수별 이닝/실점 집계 ----
+  const prevSnapRef = useRef({
+    inning: 1,
+    half: "top" as HalfInning,
+    outs: 0,
+    scoreUser: 0,
+    scoreCpu: 0,
+    userPitIdx: 0,
+    cpuPitIdx: 0,
+  });
+  useEffect(() => {
+    const p = prevSnapRef.current;
+    const sameHalf = p.inning === state.inning && p.half === state.half;
+    const outsDelta = sameHalf ? Math.max(0, state.outs - p.outs) : Math.max(0, 3 - p.outs);
+    const runsUserPit = Math.max(0, state.scoreCpu - p.scoreCpu); // 유저 투수 실점
+    const runsCpuPit = Math.max(0, state.scoreUser - p.scoreUser); // CPU 투수 실점
+    // 아웃은 이전 반이닝의 수비 투수에게 기록
+    const defWasUser = p.half === "top";
+    prevSnapRef.current = {
+      inning: state.inning,
+      half: state.half,
+      outs: state.outs,
+      scoreUser: state.scoreUser,
+      scoreCpu: state.scoreCpu,
+      userPitIdx: state.userPitIdx,
+      cpuPitIdx: state.cpuPitIdx,
+    };
+    if (!outsDelta && !runsUserPit && !runsCpuPit) return;
+    setState((s) => {
+      const uo = [...s.userPitOuts];
+      const co = [...s.cpuPitOuts];
+      const ur = [...s.userPitRuns];
+      const cr = [...s.cpuPitRuns];
+      if (outsDelta) {
+        if (defWasUser) uo[p.userPitIdx] = (uo[p.userPitIdx] ?? 0) + outsDelta;
+        else co[p.cpuPitIdx] = (co[p.cpuPitIdx] ?? 0) + outsDelta;
+      }
+      if (runsUserPit) ur[p.userPitIdx] = (ur[p.userPitIdx] ?? 0) + runsUserPit;
+      if (runsCpuPit) cr[p.cpuPitIdx] = (cr[p.cpuPitIdx] ?? 0) + runsCpuPit;
+      return { ...s, userPitOuts: uo, cpuPitOuts: co, userPitRuns: ur, cpuPitRuns: cr };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.inning, state.half, state.outs, state.scoreUser, state.scoreCpu]);
+
   // user is home team (bat bottom). half=top => cpu bats, user pitches. half=bottom => user bats, cpu pitches.
   const userBats = state.half === "bottom";
   const battingTeam = userBats ? userTeam : cpuTeam;
@@ -277,12 +333,16 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
   const batter = battingTeam.lineup[(userBats ? state.userBatIdx : state.cpuBatIdx) % battingTeam.lineup.length];
   const pitcher = pitchingTeam.rotation[(userBats ? state.cpuPitIdx : state.userPitIdx) % pitchingTeam.rotation.length];
 
-  // 정규 종료 + 조기 종료 (홈팀=유저 리드 후 마지막 회 초 완료 / 마지막 회 말 워크오프)
+  // ---- 경기 종료 판정 (동점이면 연장, 최대 INNINGS+3회) ----
+  const MAX_INNINGS = INNINGS + 3;
+  const tied = state.scoreUser === state.scoreCpu;
   const gameOver =
-    (state.inning > INNINGS && state.half === "top") ||
-    (state.inning === INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
-    (state.inning >= INNINGS && state.half === "bottom" && state.scoreUser > state.scoreCpu) ||
-    (state.inning > INNINGS);
+    // 마지막(또는 그 이후) 회 말이 끝났고 동점이 아니면 종료
+    (state.half === "top" && state.inning > INNINGS && !tied) ||
+    // 홈팀(유저)이 마지막 회 말 진입 시 이미 리드 → 더 칠 필요 없음 / 워크오프
+    (state.half === "bottom" && state.inning >= INNINGS && state.scoreUser > state.scoreCpu) ||
+    // 연장 상한 초과 → 무승부
+    state.inning > MAX_INNINGS;
 
   const appendLog = (msg: string) => {
     setState((s) => ({ ...s, log: [msg, ...s.log].slice(0, 30) }));
