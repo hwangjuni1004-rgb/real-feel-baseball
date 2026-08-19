@@ -187,6 +187,80 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
 
+  // ---- 승리/패전/세이브/홀드 기록 ----
+  type Side = "user" | "cpu";
+  const decisionRef = useRef<{ winSide: Side | null; winIdx: number; loseIdx: number }>({
+    winSide: null,
+    winIdx: 0,
+    loseIdx: 0,
+  });
+  const stintsRef = useRef<{ side: Side; idx: number; leadAtEnter: number; leadAtExit: number | null }[]>([
+    { side: "user", idx: 0, leadAtEnter: 0, leadAtExit: null },
+    { side: "cpu", idx: 0, leadAtEnter: 0, leadAtExit: null },
+  ]);
+  const prevLeadRef = useRef(0);
+
+  // 리드가 바뀌는 순간의 마운드 투수 = 승리/패전 투수 후보
+  useEffect(() => {
+    const lead = state.scoreUser - state.scoreCpu;
+    const prev = prevLeadRef.current;
+    if (lead !== 0 && Math.sign(lead) !== Math.sign(prev)) {
+      const winSide: Side = lead > 0 ? "user" : "cpu";
+      decisionRef.current = {
+        winSide,
+        winIdx: winSide === "user" ? state.userPitIdx : state.cpuPitIdx,
+        loseIdx: winSide === "user" ? state.cpuPitIdx : state.userPitIdx,
+      };
+    }
+    prevLeadRef.current = lead;
+  }, [state.scoreUser, state.scoreCpu, state.userPitIdx, state.cpuPitIdx]);
+
+  // 투수 교체 구간 기록 (등판/강판 시점의 점수차)
+  useEffect(() => {
+    const lead = state.scoreUser - state.scoreCpu;
+    const list = stintsRef.current;
+    const open = [...list].reverse().find((x) => x.side === "user" && x.leadAtExit === null);
+    if (!open || open.idx !== state.userPitIdx) {
+      if (open) open.leadAtExit = lead;
+      list.push({ side: "user", idx: state.userPitIdx, leadAtEnter: lead, leadAtExit: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.userPitIdx]);
+
+  const buildDecisions = () => {
+    const finalLead = state.scoreUser - state.scoreCpu;
+    if (finalLead === 0) return null;
+    const winnerSide: Side = finalLead > 0 ? "user" : "cpu";
+    const loserSide: Side = winnerSide === "user" ? "cpu" : "user";
+    const teamOf = (s: Side) => (s === "user" ? userTeam : cpuTeam);
+    const nameOf = (s: Side, idx: number) => {
+      const p = teamOf(s).rotation[idx];
+      return p ? `${teamOf(s).name} ${p.name}` : "-";
+    };
+    const d = decisionRef.current;
+    const winIdx = d.winSide === winnerSide ? d.winIdx : winnerSide === "user" ? 0 : state.cpuPitIdx;
+    const loseIdx = d.winSide === winnerSide ? d.loseIdx : loserSide === "user" ? state.userPitIdx : state.cpuPitIdx;
+
+    const winnerStints = stintsRef.current.filter((x) => x.side === winnerSide);
+    const finisher = winnerStints[winnerStints.length - 1];
+    let save: string | null = null;
+    if (finisher && winnerStints.length > 1 && finisher.idx !== winIdx && finisher.leadAtEnter * (winnerSide === "user" ? 1 : -1) > 0) {
+      save = nameOf(winnerSide, finisher.idx);
+    }
+    const sign = winnerSide === "user" ? 1 : -1;
+    const holds = winnerStints
+      .slice(1, Math.max(1, winnerStints.length - 1))
+      .filter((x) => x.idx !== winIdx && x.leadAtEnter * sign > 0 && (x.leadAtExit ?? finalLead) * sign > 0)
+      .map((x) => nameOf(winnerSide, x.idx));
+
+    return {
+      win: nameOf(winnerSide, winIdx),
+      lose: nameOf(loserSide, loseIdx),
+      save,
+      holds: Array.from(new Set(holds)),
+    };
+  };
+
   const incPitchCount = (side: "user" | "cpu", idx: number) => {
     setState((s) => {
       const key = side === "user" ? "userPitchCounts" : "cpuPitchCounts";
