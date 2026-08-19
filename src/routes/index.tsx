@@ -162,7 +162,15 @@ interface GameState {
   cpuPitchersOut: number[];
   userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
   cpuPitchCounts: number[];
+  userPitOuts: number[]; // 각 투수가 잡은 아웃 수 (이닝 계산용)
+  cpuPitOuts: number[];
+  userPitRuns: number[]; // 각 투수의 실점
+  cpuPitRuns: number[];
   log: string[];
+}
+
+export function formatIP(outs: number) {
+  return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
 function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
