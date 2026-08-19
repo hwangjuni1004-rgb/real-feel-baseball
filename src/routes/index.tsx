@@ -525,7 +525,16 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
   };
 
   if (gameOver) {
-    return <Result userTeam={userTeam} cpuTeam={cpuTeam} scoreUser={state.scoreUser} scoreCpu={state.scoreCpu} onFinish={onFinish} />;
+    return (
+      <Result
+        userTeam={userTeam}
+        cpuTeam={cpuTeam}
+        scoreUser={state.scoreUser}
+        scoreCpu={state.scoreCpu}
+        decisions={buildDecisions()}
+        onFinish={onFinish}
+      />
+    );
   }
 
   return (
