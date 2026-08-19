@@ -1786,6 +1786,33 @@ function Result({ userTeam, cpuTeam, scoreUser, scoreCpu, decisions, onFinish }:
             <div className="text-4xl font-black tabular-nums">{scoreUser}</div>
           </div>
         </div>
+
+        {decisions ? (
+          <div className="text-left bg-black/40 border border-white/10 rounded-xl p-4 mb-6 space-y-2 text-sm">
+            <div className="text-xs font-bold text-white/60 mb-1">투수 기록</div>
+            <div className="flex justify-between gap-3">
+              <span className="text-emerald-400 font-bold">승리투수 (W)</span>
+              <span className="font-semibold">{decisions.win}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-rose-400 font-bold">패전투수 (L)</span>
+              <span className="font-semibold">{decisions.lose}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-sky-400 font-bold">세이브 (S)</span>
+              <span className="font-semibold">{decisions.save ?? "없음"}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-amber-400 font-bold">홀드 (H)</span>
+              <span className="font-semibold text-right">
+                {decisions.holds.length ? decisions.holds.join(", ") : "없음"}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-white/60 mb-6">무승부 — 승리/패전 투수 없음</div>
+        )}
+
         <button
           onClick={onFinish}
           className="px-6 py-3 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300"
