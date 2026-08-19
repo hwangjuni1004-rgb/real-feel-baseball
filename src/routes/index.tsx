@@ -192,6 +192,10 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     cpuPitchersOut: [],
     userPitchCounts: userTeam.rotation.map(() => 0),
     cpuPitchCounts: cpuTeam.rotation.map(() => 0),
+    userPitOuts: userTeam.rotation.map(() => 0),
+    cpuPitOuts: cpuTeam.rotation.map(() => 0),
+    userPitRuns: userTeam.rotation.map(() => 0),
+    cpuPitRuns: cpuTeam.rotation.map(() => 0),
     log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
   });
 
