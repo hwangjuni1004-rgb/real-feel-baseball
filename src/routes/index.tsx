@@ -1763,8 +1763,10 @@ function Diamond({ bases }: { bases: [boolean, boolean, boolean] }) {
 }
 
 // ---------- Result ----------
-function Result({ userTeam, cpuTeam, scoreUser, scoreCpu, onFinish }: {
-  userTeam: Team; cpuTeam: Team; scoreUser: number; scoreCpu: number; onFinish: () => void;
+function Result({ userTeam, cpuTeam, scoreUser, scoreCpu, decisions, onFinish }: {
+  userTeam: Team; cpuTeam: Team; scoreUser: number; scoreCpu: number;
+  decisions: { win: string; lose: string; save: string | null; holds: string[] } | null;
+  onFinish: () => void;
 }) {
   const win = scoreUser > scoreCpu;
   const tie = scoreUser === scoreCpu;
