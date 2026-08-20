@@ -1769,8 +1769,9 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
           </g>
         )}
         {face?.headband && <rect x="17" y="11.4" width="12" height="1.8" fill="#dc2626" />}
-        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
-        <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="url(#pCap)" />
+        <rect x="14" y="13" width="8" height="2" fill="url(#pCap)" />
+
         {legend && <circle cx="23" cy="14" r="9.5" fill="none" stroke="rgba(253,224,71,0.55)" strokeWidth="0.8" />}
         {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
         <polyline
