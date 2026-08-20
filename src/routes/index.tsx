@@ -247,7 +247,10 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     const teamOf = (s: Side) => (s === "user" ? userTeam : cpuTeam);
     const nameOf = (s: Side, idx: number) => {
       const p = teamOf(s).rotation[idx];
-      return p ? `${teamOf(s).name} ${p.name}` : "-";
+      if (!p) return "-";
+      const outs = (s === "user" ? state.userPitOuts[idx] : state.cpuPitOuts[idx]) ?? 0;
+      const runs = (s === "user" ? state.userPitRuns[idx] : state.cpuPitRuns[idx]) ?? 0;
+      return `${teamOf(s).name} ${p.name} (${formatIP(outs)}이닝 ${runs}실점)`;
     };
     const d = decisionRef.current;
     const winIdx = d.winSide === winnerSide ? d.winIdx : winnerSide === "user" ? 0 : state.cpuPitIdx;
