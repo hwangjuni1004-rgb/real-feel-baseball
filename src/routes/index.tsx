@@ -714,11 +714,52 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
   );
 }
 
+// 볼넷/사구: 밀어내기(포스) 상황만 진루. 1루가 비면 타자만 1루, 나머지 주자는 그대로.
 function pushRunner(bases: [boolean, boolean, boolean]): { bases: [boolean, boolean, boolean]; scored: number } {
-  const b: [boolean, boolean, boolean] = [true, bases[0], bases[1]];
-  const scored = bases[2] ? 1 : 0;
+  const b: [boolean, boolean, boolean] = [...bases] as [boolean, boolean, boolean];
+  let scored = 0;
+  if (!b[0]) {
+    // 1루 비어있음 → 타자만 1루로, 2·3루 주자는 정지
+    b[0] = true;
+    return { bases: b, scored: 0 };
+  }
+  // 1루 주자 있음 → 강제 진루 연쇄
+  if (!b[1]) {
+    b[1] = true; // 1루 주자 → 2루
+  } else if (!b[2]) {
+    b[2] = true; // 2루 주자 → 3루
+    b[1] = true; // 1루 주자 → 2루
+  } else {
+    // 만루: 3루 주자 밀어내기 득점
+    scored = 1;
+  }
+  b[0] = true; // 타자 1루
   return { bases: b, scored };
 }
+
+// 클릭한 지점 근처로 떨어지도록: 제구 스탯이 높을수록 오차 반경 축소.
+// 변화구 무브먼트는 시각 궤적에만 크게 쓰이고, 최종 위치엔 아주 약하게만 반영.
+export function computeActualLoc(
+  target: PitchLoc,
+  control: number,
+  breakX: number,
+  breakY: number,
+  throws: "L" | "R",
+): PitchLoc {
+  const ctrl = clamp(control, 1, 10);
+  // 제구 10 → ±0.25칸(거의 정확), 제구 5 → ±0.85칸, 제구 1 → ±1.3칸
+  const errRange = 0.25 + (10 - ctrl) * 0.117;
+  const errX = rand(-errRange, errRange);
+  const errY = rand(-errRange, errRange);
+  const mirror = throws === "L" ? -1 : 1;
+  // 무브먼트 잔여 영향: 제구 좋으면 무브먼트까지 계산해서 던짐 → 거의 상쇄
+  const residual = 0.06 + (10 - ctrl) * 0.022;
+  return {
+    col: clamp(Math.round(target.col + errX + breakX * mirror * residual), 0, 4) as PitchLoc["col"],
+    row: clamp(Math.round(target.row + errY + breakY * residual), 0, 4) as PitchLoc["row"],
+  };
+}
+
 
 function BatterNamePlate({ batter }: { batter: Batter }) {
   if (batter.legend) {
