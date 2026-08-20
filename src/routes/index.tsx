@@ -1819,20 +1819,48 @@ function RunnerSvg({ color, accent }: { color: string; accent: string }) {
 function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolean }) {
   const flip = bats === "L" ? -1 : 1;
   return (
-    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})` }}>
+    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.55))" }}>
+      <defs>
+        <linearGradient id="bUni" x1="0" y1="0" x2="1" y2="0.3">
+          <stop offset="0%" stopColor="#f87171" />
+          <stop offset="55%" stopColor="#dc2626" />
+          <stop offset="100%" stopColor="#7f1d1d" />
+        </linearGradient>
+        <linearGradient id="bPants" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#5b6b80" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+        <radialGradient id="bSkin" cx="0.35" cy="0.3" r="0.8">
+          <stop offset="0%" stopColor="#ffe6c9" />
+          <stop offset="70%" stopColor="#f5d5b0" />
+          <stop offset="100%" stopColor="#c99a6f" />
+        </radialGradient>
+        <linearGradient id="bHelmet" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#475569" />
+          <stop offset="100%" stopColor="#0f172a" />
+        </linearGradient>
+        <linearGradient id="bBat" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#b4692a" />
+          <stop offset="100%" stopColor="#5b2a0c" />
+        </linearGradient>
+      </defs>
+      {/* 지면 그림자 */}
+      <ellipse cx="30" cy="77" rx="18" ry="4" fill="rgba(0,0,0,0.35)" />
       {/* 다리 */}
-      <rect x="22" y="50" width="6" height="24" fill="#334155" />
-      <rect x="32" y="50" width="6" height="24" fill="#334155" />
+      <rect x="22" y="50" width="6" height="24" fill="url(#bPants)" />
+      <rect x="32" y="50" width="6" height="24" fill="url(#bPants)" />
       {/* 신발 */}
       <rect x="20" y="72" width="10" height="5" rx="1" fill="#0f172a" />
       <rect x="30" y="72" width="10" height="5" rx="1" fill="#0f172a" />
       {/* 유니폼 */}
-      <rect x="18" y="26" width="22" height="26" rx="3" fill="#dc2626" stroke="#222" strokeWidth="1" />
+      <rect x="18" y="26" width="22" height="26" rx="3" fill="url(#bUni)" stroke="#222" strokeWidth="1" />
+      <rect x="18" y="26" width="6" height="26" rx="3" fill="rgba(255,255,255,0.22)" />
       {/* 등번호 */}
       <text x="29" y="42" fontSize="10" fill="white" fontWeight="bold" textAnchor="middle">7</text>
       {/* 머리 + 헬멧 */}
-      <circle cx="29" cy="18" r="7" fill="#f5d5b0" />
-      <path d="M22 16 Q29 6 36 16 L37 19 L21 19 Z" fill="#1e293b" />
+      <circle cx="29" cy="18" r="7" fill="url(#bSkin)" />
+      <path d="M22 16 Q29 6 36 16 L37 19 L21 19 Z" fill="url(#bHelmet)" />
+
       {/* 팔 + 배트 */}
       {swinging ? (
         <>
