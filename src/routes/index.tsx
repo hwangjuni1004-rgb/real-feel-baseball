@@ -1722,19 +1722,43 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
   const bodyLean = windup ? lean : lean * 0.6;
 
   return (
-    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})` }}>
+    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.55))" }}>
+      <defs>
+        <linearGradient id="pUni" x1="0" y1="0" x2="1" y2="0.4">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="55%" stopColor="#e8e8ea" />
+          <stop offset="100%" stopColor="#a7abb3" />
+        </linearGradient>
+        <radialGradient id="pSkin" cx="0.35" cy="0.3" r="0.8">
+          <stop offset="0%" stopColor="#ffe6c9" />
+          <stop offset="70%" stopColor={face?.skin ?? "#f5d5b0"} />
+          <stop offset="100%" stopColor="#c99a६f".replace("६", "6")} />
+        </radialGradient>
+        <linearGradient id="pCap" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#2b53b8" />
+          <stop offset="100%" stopColor="#152a63" />
+        </linearGradient>
+        <linearGradient id="pPants" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#475569" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+      </defs>
+      {/* 지면 그림자 (입체감) */}
+      <ellipse cx="23" cy="59" rx="15" ry="3.5" fill="rgba(0,0,0,0.35)" />
       <g style={{ transform: `rotate(${bodyLean}deg)`, transformOrigin: "23px 40px", transition: "transform 150ms" }}>
         {/* 바지 / 다리 (폼별 스탠스) */}
-        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="#334155" strokeWidth="5" strokeLinecap="round" />
-        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
+        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
         {/* 신발 */}
         <ellipse cx={slot === "under" ? 9 : 14} cy="58" rx="5" ry="2.5" fill="#0f172a" />
         <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
         {/* 유니폼 몸통 */}
-        <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
+        <rect x="16" y="20" width="15" height="22" rx="4" fill="url(#pUni)" stroke="#222" strokeWidth="1" />
+        <rect x="16" y="20" width="4.5" height="22" rx="2" fill="rgba(255,255,255,0.35)" />
         {/* 머리 + 모자 + 얼굴 특징 */}
         {face?.longHair && <path d="M16 14 Q15 24 19 26 L27 26 Q31 24 30 14 Z" fill="#1b1b1b" />}
-        <circle cx="23" cy="14" r="6" fill={face?.skin ?? "#f5d5b0"} />
+        <circle cx="23" cy="14" r="6" fill="url(#pSkin)" />
+
         {face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
         {face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
         {face?.glasses && (
