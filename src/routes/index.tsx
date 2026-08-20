@@ -1203,19 +1203,8 @@ function BatterView({
     const targetCol = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.7 ? edgeCol : Math.floor(rand(1, 4)))) as PitchLoc["col"];
     const targetRow = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.5 ? edgeRow : Math.floor(rand(1, 4)))) as PitchLoc["row"];
     const target: PitchLoc = { col: targetCol, row: targetRow };
-    // 제구 좋으면 오차 작고 코너 유지
-    const controlFactor = (11 - pitcher.control) / 10;
-    const errRange = controlFactor * 1.4;
-    const errX = rand(-errRange, errRange);
-    const errY = rand(-errRange, errRange);
-    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
-    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
-    const controlNudge = (pitcher.control - 5) * 0.12;
-    const mirror = pitcher.throws === "L" ? -1 : 1;
-    const actual: PitchLoc = {
-      col: clamp(Math.round(target.col + errX + type.break.x * mirror + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
-      row: clamp(Math.round(target.row + errY + type.break.y + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
-    };
+    const actual = computeActualLoc(target, pitcher.control, type.break.x, type.break.y, pitcher.throws ?? "R");
+
     const speed = Math.round(rand(type.speedMin, type.speedMax));
     // 구속 시각 격차 크게: 140→1220ms, 160→780ms
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
