@@ -247,7 +247,10 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     const teamOf = (s: Side) => (s === "user" ? userTeam : cpuTeam);
     const nameOf = (s: Side, idx: number) => {
       const p = teamOf(s).rotation[idx];
-      return p ? `${teamOf(s).name} ${p.name}` : "-";
+      if (!p) return "-";
+      const outs = (s === "user" ? state.userPitOuts[idx] : state.cpuPitOuts[idx]) ?? 0;
+      const runs = (s === "user" ? state.userPitRuns[idx] : state.cpuPitRuns[idx]) ?? 0;
+      return `${teamOf(s).name} ${p.name} (${formatIP(outs)}이닝 ${runs}실점)`;
     };
     const d = decisionRef.current;
     const winIdx = d.winSide === winnerSide ? d.winIdx : winnerSide === "user" ? 0 : state.cpuPitIdx;
@@ -682,6 +685,13 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
             )}
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
             {(() => {
+              const outs = userBats ? (state.cpuPitOuts[state.cpuPitIdx] ?? 0) : (state.userPitOuts[state.userPitIdx] ?? 0);
+              const runs = userBats ? (state.cpuPitRuns[state.cpuPitIdx] ?? 0) : (state.userPitRuns[state.userPitIdx] ?? 0);
+              return (
+                <div className="text-xs text-white/80">{formatIP(outs)}이닝 {runs}실점</div>
+              );
+            })()}
+            {(() => {
               const cnt = userBats
                 ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
                 : (state.userPitchCounts[state.userPitIdx] ?? 0);
@@ -714,11 +724,52 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
   );
 }
 
+// 볼넷/사구: 밀어내기(포스) 상황만 진루. 1루가 비면 타자만 1루, 나머지 주자는 그대로.
 function pushRunner(bases: [boolean, boolean, boolean]): { bases: [boolean, boolean, boolean]; scored: number } {
-  const b: [boolean, boolean, boolean] = [true, bases[0], bases[1]];
-  const scored = bases[2] ? 1 : 0;
+  const b: [boolean, boolean, boolean] = [...bases] as [boolean, boolean, boolean];
+  let scored = 0;
+  if (!b[0]) {
+    // 1루 비어있음 → 타자만 1루로, 2·3루 주자는 정지
+    b[0] = true;
+    return { bases: b, scored: 0 };
+  }
+  // 1루 주자 있음 → 강제 진루 연쇄
+  if (!b[1]) {
+    b[1] = true; // 1루 주자 → 2루
+  } else if (!b[2]) {
+    b[2] = true; // 2루 주자 → 3루
+    b[1] = true; // 1루 주자 → 2루
+  } else {
+    // 만루: 3루 주자 밀어내기 득점
+    scored = 1;
+  }
+  b[0] = true; // 타자 1루
   return { bases: b, scored };
 }
+
+// 클릭한 지점 근처로 떨어지도록: 제구 스탯이 높을수록 오차 반경 축소.
+// 변화구 무브먼트는 시각 궤적에만 크게 쓰이고, 최종 위치엔 아주 약하게만 반영.
+export function computeActualLoc(
+  target: PitchLoc,
+  control: number,
+  breakX: number,
+  breakY: number,
+  throws: "L" | "R",
+): PitchLoc {
+  const ctrl = clamp(control, 1, 10);
+  // 제구 10 → ±0.25칸(거의 정확), 제구 5 → ±0.85칸, 제구 1 → ±1.3칸
+  const errRange = 0.25 + (10 - ctrl) * 0.117;
+  const errX = rand(-errRange, errRange);
+  const errY = rand(-errRange, errRange);
+  const mirror = throws === "L" ? -1 : 1;
+  // 무브먼트 잔여 영향: 제구 좋으면 무브먼트까지 계산해서 던짐 → 거의 상쇄
+  const residual = 0.06 + (10 - ctrl) * 0.022;
+  return {
+    col: clamp(Math.round(target.col + errX + breakX * mirror * residual), 0, 4) as PitchLoc["col"],
+    row: clamp(Math.round(target.row + errY + breakY * residual), 0, 4) as PitchLoc["row"],
+  };
+}
+
 
 function BatterNamePlate({ batter }: { batter: Batter }) {
   if (batter.legend) {
@@ -893,21 +944,8 @@ function PitcherView({
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
     // 제구 능력에 따른 오차 - 제구 좋으면 목표 근처 + 코너 유지
-    const controlFactor = (11 - pitcher.control) / 10; // 1(제구10)→0.1, 1(제구1)→1.0
-    const errRange = controlFactor * 1.6;
-    const errX = rand(-errRange, errRange);
-    const errY = rand(-errRange, errRange);
-    // 코너를 겨냥한 경우 제구 좋으면 살짝 코너 쪽으로 더 밀기
-    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
-    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
-    const controlNudge = (pitcher.control - 5) * 0.12;
-    const mirror = pitcher.throws === "L" ? -1 : 1;
-    const bx = type.break.x * mirror;
-    const by = type.break.y;
-    const actual: PitchLoc = {
-      col: clamp(Math.round(target.col + errX + bx + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
-      row: clamp(Math.round(target.row + errY + by + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
-    };
+    const actual = computeActualLoc(target, pitcher.control, type.break.x, type.break.y, pitcher.throws ?? "R");
+
     const speed = Math.round(rand(type.speedMin, type.speedMax));
     // 구속에 따른 시각적 duration - 확실히 차이 나게
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
@@ -1175,19 +1213,8 @@ function BatterView({
     const targetCol = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.7 ? edgeCol : Math.floor(rand(1, 4)))) as PitchLoc["col"];
     const targetRow = (wantStrike ? Math.floor(rand(1, 4)) : (Math.random() < 0.5 ? edgeRow : Math.floor(rand(1, 4)))) as PitchLoc["row"];
     const target: PitchLoc = { col: targetCol, row: targetRow };
-    // 제구 좋으면 오차 작고 코너 유지
-    const controlFactor = (11 - pitcher.control) / 10;
-    const errRange = controlFactor * 1.4;
-    const errX = rand(-errRange, errRange);
-    const errY = rand(-errRange, errRange);
-    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
-    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
-    const controlNudge = (pitcher.control - 5) * 0.12;
-    const mirror = pitcher.throws === "L" ? -1 : 1;
-    const actual: PitchLoc = {
-      col: clamp(Math.round(target.col + errX + type.break.x * mirror + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
-      row: clamp(Math.round(target.row + errY + type.break.y + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
-    };
+    const actual = computeActualLoc(target, pitcher.control, type.break.x, type.break.y, pitcher.throws ?? "R");
+
     const speed = Math.round(rand(type.speedMin, type.speedMax));
     // 구속 시각 격차 크게: 140→1220ms, 160→780ms
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
@@ -1695,19 +1722,43 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
   const bodyLean = windup ? lean : lean * 0.6;
 
   return (
-    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})` }}>
+    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.55))" }}>
+      <defs>
+        <linearGradient id="pUni" x1="0" y1="0" x2="1" y2="0.4">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="55%" stopColor="#e8e8ea" />
+          <stop offset="100%" stopColor="#a7abb3" />
+        </linearGradient>
+        <radialGradient id="pSkin" cx="0.35" cy="0.3" r="0.8">
+          <stop offset="0%" stopColor="#ffe6c9" />
+          <stop offset="70%" stopColor={face?.skin ?? "#f5d5b0"} />
+          <stop offset="100%" stopColor="#c99a6f" />
+        </radialGradient>
+        <linearGradient id="pCap" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#2b53b8" />
+          <stop offset="100%" stopColor="#152a63" />
+        </linearGradient>
+        <linearGradient id="pPants" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#475569" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+      </defs>
+      {/* 지면 그림자 (입체감) */}
+      <ellipse cx="23" cy="59" rx="15" ry="3.5" fill="rgba(0,0,0,0.35)" />
       <g style={{ transform: `rotate(${bodyLean}deg)`, transformOrigin: "23px 40px", transition: "transform 150ms" }}>
         {/* 바지 / 다리 (폼별 스탠스) */}
-        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="#334155" strokeWidth="5" strokeLinecap="round" />
-        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
+        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
         {/* 신발 */}
         <ellipse cx={slot === "under" ? 9 : 14} cy="58" rx="5" ry="2.5" fill="#0f172a" />
         <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
         {/* 유니폼 몸통 */}
-        <rect x="16" y="20" width="15" height="22" rx="4" fill="#f5f5f5" stroke="#222" strokeWidth="1" />
+        <rect x="16" y="20" width="15" height="22" rx="4" fill="url(#pUni)" stroke="#222" strokeWidth="1" />
+        <rect x="16" y="20" width="4.5" height="22" rx="2" fill="rgba(255,255,255,0.35)" />
         {/* 머리 + 모자 + 얼굴 특징 */}
         {face?.longHair && <path d="M16 14 Q15 24 19 26 L27 26 Q31 24 30 14 Z" fill="#1b1b1b" />}
-        <circle cx="23" cy="14" r="6" fill={face?.skin ?? "#f5d5b0"} />
+        <circle cx="23" cy="14" r="6" fill="url(#pSkin)" />
+
         {face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
         {face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
         {face?.glasses && (
@@ -1718,8 +1769,9 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
           </g>
         )}
         {face?.headband && <rect x="17" y="11.4" width="12" height="1.8" fill="#dc2626" />}
-        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="#1e3a8a" />
-        <rect x="14" y="13" width="8" height="2" fill="#1e3a8a" />
+        <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="url(#pCap)" />
+        <rect x="14" y="13" width="8" height="2" fill="url(#pCap)" />
+
         {legend && <circle cx="23" cy="14" r="9.5" fill="none" stroke="rgba(253,224,71,0.55)" strokeWidth="0.8" />}
         {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
         <polyline
@@ -1767,34 +1819,62 @@ function RunnerSvg({ color, accent }: { color: string; accent: string }) {
 function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolean }) {
   const flip = bats === "L" ? -1 : 1;
   return (
-    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})` }}>
+    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.55))" }}>
+      <defs>
+        <linearGradient id="bUni" x1="0" y1="0" x2="1" y2="0.3">
+          <stop offset="0%" stopColor="#f87171" />
+          <stop offset="55%" stopColor="#dc2626" />
+          <stop offset="100%" stopColor="#7f1d1d" />
+        </linearGradient>
+        <linearGradient id="bPants" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#5b6b80" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+        <radialGradient id="bSkin" cx="0.35" cy="0.3" r="0.8">
+          <stop offset="0%" stopColor="#ffe6c9" />
+          <stop offset="70%" stopColor="#f5d5b0" />
+          <stop offset="100%" stopColor="#c99a6f" />
+        </radialGradient>
+        <linearGradient id="bHelmet" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#475569" />
+          <stop offset="100%" stopColor="#0f172a" />
+        </linearGradient>
+        <linearGradient id="bBat" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#b4692a" />
+          <stop offset="100%" stopColor="#5b2a0c" />
+        </linearGradient>
+      </defs>
+      {/* 지면 그림자 */}
+      <ellipse cx="30" cy="77" rx="18" ry="4" fill="rgba(0,0,0,0.35)" />
       {/* 다리 */}
-      <rect x="22" y="50" width="6" height="24" fill="#334155" />
-      <rect x="32" y="50" width="6" height="24" fill="#334155" />
+      <rect x="22" y="50" width="6" height="24" fill="url(#bPants)" />
+      <rect x="32" y="50" width="6" height="24" fill="url(#bPants)" />
       {/* 신발 */}
       <rect x="20" y="72" width="10" height="5" rx="1" fill="#0f172a" />
       <rect x="30" y="72" width="10" height="5" rx="1" fill="#0f172a" />
       {/* 유니폼 */}
-      <rect x="18" y="26" width="22" height="26" rx="3" fill="#dc2626" stroke="#222" strokeWidth="1" />
+      <rect x="18" y="26" width="22" height="26" rx="3" fill="url(#bUni)" stroke="#222" strokeWidth="1" />
+      <rect x="18" y="26" width="6" height="26" rx="3" fill="rgba(255,255,255,0.22)" />
       {/* 등번호 */}
       <text x="29" y="42" fontSize="10" fill="white" fontWeight="bold" textAnchor="middle">7</text>
       {/* 머리 + 헬멧 */}
-      <circle cx="29" cy="18" r="7" fill="#f5d5b0" />
-      <path d="M22 16 Q29 6 36 16 L37 19 L21 19 Z" fill="#1e293b" />
+      <circle cx="29" cy="18" r="7" fill="url(#bSkin)" />
+      <path d="M22 16 Q29 6 36 16 L37 19 L21 19 Z" fill="url(#bHelmet)" />
+
       {/* 팔 + 배트 */}
       {swinging ? (
         <>
           <line x1="40" y1="30" x2="55" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           <line x1="18" y1="30" x2="5" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           {/* 스윙한 배트 (수평) */}
-          <line x1="55" y1="28" x2="2" y2="20" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+          <line x1="55" y1="28" x2="2" y2="20" stroke="url(#bBat)" strokeWidth="4.5" strokeLinecap="round" />
         </>
       ) : (
         <>
           <line x1="40" y1="30" x2="46" y2="20" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           <line x1="18" y1="30" x2="42" y2="16" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           {/* 준비 자세 배트 (위로) */}
-          <line x1="46" y1="20" x2="55" y2="-8" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+          <line x1="46" y1="20" x2="55" y2="-8" stroke="url(#bBat)" strokeWidth="4.5" strokeLinecap="round" />
         </>
       )}
     </svg>
