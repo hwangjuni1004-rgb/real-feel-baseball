@@ -934,21 +934,8 @@ function PitcherView({
     if (!target) return;
     const type = pitcher.pitches[pitchTypeIdx];
     // 제구 능력에 따른 오차 - 제구 좋으면 목표 근처 + 코너 유지
-    const controlFactor = (11 - pitcher.control) / 10; // 1(제구10)→0.1, 1(제구1)→1.0
-    const errRange = controlFactor * 1.6;
-    const errX = rand(-errRange, errRange);
-    const errY = rand(-errRange, errRange);
-    // 코너를 겨냥한 경우 제구 좋으면 살짝 코너 쪽으로 더 밀기
-    const cornerX = target.col === 1 ? -0.3 : target.col === 3 ? 0.3 : 0;
-    const cornerY = target.row === 1 ? -0.3 : target.row === 3 ? 0.3 : 0;
-    const controlNudge = (pitcher.control - 5) * 0.12;
-    const mirror = pitcher.throws === "L" ? -1 : 1;
-    const bx = type.break.x * mirror;
-    const by = type.break.y;
-    const actual: PitchLoc = {
-      col: clamp(Math.round(target.col + errX + bx + cornerX * controlNudge), 0, 4) as PitchLoc["col"],
-      row: clamp(Math.round(target.row + errY + by + cornerY * controlNudge), 0, 4) as PitchLoc["row"],
-    };
+    const actual = computeActualLoc(target, pitcher.control, type.break.x, type.break.y, pitcher.throws ?? "R");
+
     const speed = Math.round(rand(type.speedMin, type.speedMax));
     // 구속에 따른 시각적 duration - 확실히 차이 나게
     const duration = Math.round(clamp(1500 - (speed - 120) * 22, 620, 1500));
