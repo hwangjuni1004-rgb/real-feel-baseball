@@ -1732,7 +1732,7 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
         <radialGradient id="pSkin" cx="0.35" cy="0.3" r="0.8">
           <stop offset="0%" stopColor="#ffe6c9" />
           <stop offset="70%" stopColor={face?.skin ?? "#f5d5b0"} />
-          <stop offset="100%" stopColor="#c99a६f".replace("६", "6")} />
+          <stop offset="100%" stopColor="#c99a6f" />
         </radialGradient>
         <linearGradient id="pCap" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#2b53b8" />
