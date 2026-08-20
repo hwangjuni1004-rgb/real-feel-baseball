@@ -1867,14 +1867,14 @@ function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolea
           <line x1="40" y1="30" x2="55" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           <line x1="18" y1="30" x2="5" y2="28" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           {/* 스윙한 배트 (수평) */}
-          <line x1="55" y1="28" x2="2" y2="20" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+          <line x1="55" y1="28" x2="2" y2="20" stroke="url(#bBat)" strokeWidth="4.5" strokeLinecap="round" />
         </>
       ) : (
         <>
           <line x1="40" y1="30" x2="46" y2="20" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           <line x1="18" y1="30" x2="42" y2="16" stroke="#f5d5b0" strokeWidth="4" strokeLinecap="round" />
           {/* 준비 자세 배트 (위로) */}
-          <line x1="46" y1="20" x2="55" y2="-8" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+          <line x1="46" y1="20" x2="55" y2="-8" stroke="url(#bBat)" strokeWidth="4.5" strokeLinecap="round" />
         </>
       )}
     </svg>
