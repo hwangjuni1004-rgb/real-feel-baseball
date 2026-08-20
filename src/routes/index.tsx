@@ -682,6 +682,13 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
             )}
             <div className="mt-2 text-xs">제구 {pitcher.control}</div>
             {(() => {
+              const outs = userBats ? (state.cpuPitOuts[state.cpuPitIdx] ?? 0) : (state.userPitOuts[state.userPitIdx] ?? 0);
+              const runs = userBats ? (state.cpuPitRuns[state.cpuPitIdx] ?? 0) : (state.userPitRuns[state.userPitIdx] ?? 0);
+              return (
+                <div className="text-xs text-white/80">{formatIP(outs)}이닝 {runs}실점</div>
+              );
+            })()}
+            {(() => {
               const cnt = userBats
                 ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
                 : (state.userPitchCounts[state.userPitIdx] ?? 0);
