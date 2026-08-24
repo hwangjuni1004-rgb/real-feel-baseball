@@ -51,14 +51,16 @@ function Game() {
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
   const [innings, setInnings] = useState<number>(3);
+  const [starterIdx, setStarterIdx] = useState<number>(0);
 
   if (phase === "team-select") {
     return (
       <TeamSelect
-        onStart={(u, c, inn) => {
+        onStart={(u, c, inn, starter) => {
           setUserTeam(u);
           setCpuTeam(c);
           setInnings(inn);
+          setStarterIdx(starter);
           setPhase("playing");
         }}
       />
@@ -71,6 +73,7 @@ function Game() {
         userTeam={userTeam}
         cpuTeam={cpuTeam}
         innings={innings}
+        starterIdx={starterIdx}
         onFinish={() => setPhase("team-select")}
       />
     );
@@ -79,8 +82,9 @@ function Game() {
 }
 
 // ---------- Team Select ----------
-function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) => void }) {
+function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number, starterIdx: number) => void }) {
   const [user, setUser] = useState<Team | null>(null);
+  const [starterIdx, setStarterIdx] = useState<number>(0);
   const [innings, setInnings] = useState<number>(3);
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white px-4 py-10">
