@@ -212,8 +212,9 @@ export function formatIP(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
+function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: () => void }) {
   const INNINGS = innings;
+  const safeStarter = clamp(starterIdx, 0, userTeam.rotation.length - 1);
   const [state, setState] = useState<GameState>({
     inning: 1,
     half: "top",
@@ -224,7 +225,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     scoreCpu: 0,
     userBatIdx: 0,
     cpuBatIdx: 0,
-    userPitIdx: 0,
+    userPitIdx: safeStarter,
     cpuPitIdx: 0,
     bases: [false, false, false],
     userPitchersOut: [],
@@ -235,8 +236,15 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     cpuPitOuts: cpuTeam.rotation.map(() => 0),
     userPitRuns: userTeam.rotation.map(() => 0),
     cpuPitRuns: cpuTeam.rotation.map(() => 0),
-    log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
+    log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작! 선발: ${userTeam.rotation[safeStarter]?.name}`],
   });
+
+  // 선발 투수는 체력 소모 35%만 적용 (약 3배 오래 던짐)
+  const STARTER_STAMINA_FACTOR = 0.35;
+  const rawCount = (side: "user" | "cpu", idx: number) =>
+    (side === "user" ? state.userPitchCounts[idx] : state.cpuPitchCounts[idx]) ?? 0;
+  const effCount = (side: "user" | "cpu", idx: number) =>
+    rawCount(side, idx) * (side === "user" && idx === safeStarter ? STARTER_STAMINA_FACTOR : 1);
 
   // ---- 승리/패전/세이브/홀드 기록 ----
   type Side = "user" | "cpu";
