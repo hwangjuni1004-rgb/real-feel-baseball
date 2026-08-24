@@ -1300,11 +1300,14 @@ function BatterView({
     setTimeout(() => {
       if (!swungRef.current) {
         const strike = inStrikeZone(actual);
-        const label = strike ? "스트라이크" : "볼";
-        setPhaseMsg(label);
+        // 사구: 몸쪽 깊은 공을 피하지 못하면 몸에 맞는 공
+        const insideCol = batter.bats === "L" ? 4 : 0;
+        const isHbp = !strike && actual.col === insideCol && actual.row >= 1 && actual.row <= 3 && Math.random() < 0.12;
+        const label = isHbp ? "사구" : strike ? "스트라이크" : "볼";
+        setPhaseMsg(isHbp ? "몸에 맞는 공!" : label);
         setLastPitch({ name: type.name, speed, result: label });
         showOutcome(label, speed);
-        onCount(strike ? "strike" : "ball");
+        onCount(isHbp ? "hbp" : strike ? "strike" : "ball");
       }
       setPitch(null);
       setReady(false);
