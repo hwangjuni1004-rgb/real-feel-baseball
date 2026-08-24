@@ -509,6 +509,20 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
           balls = 0;
           strikes = 0;
         }
+      } else if (result === "hbp") {
+        // 몸에 맞는 공: 볼넷과 동일한 포스 진루 규칙 적용
+        log = [`🤕 ${batter.name} 몸에 맞는 공! 출루`, ...log];
+        const hbpResult = pushRunner(bases);
+        bases = hbpResult.bases;
+        if (hbpResult.scored) {
+          if (userBats) scoreUser++;
+          else scoreCpu++;
+          log = [`🏃 밀어내기 득점! (${hbpResult.scored}점)`, ...log];
+        }
+        if (userBats) userBatIdx++;
+        else cpuBatIdx++;
+        balls = 0;
+        strikes = 0;
       } else if (result === "strike") {
         strikes++;
         if (strikes >= 3) {
