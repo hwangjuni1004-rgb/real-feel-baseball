@@ -254,7 +254,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
     loseIdx: 0,
   });
   const stintsRef = useRef<{ side: Side; idx: number; leadAtEnter: number; leadAtExit: number | null }[]>([
-    { side: "user", idx: 0, leadAtEnter: 0, leadAtExit: null },
+    { side: "user", idx: safeStarter, leadAtEnter: 0, leadAtExit: null },
     { side: "cpu", idx: 0, leadAtEnter: 0, leadAtExit: null },
   ]);
   const prevLeadRef = useRef(0);
@@ -339,7 +339,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
     outs: 0,
     scoreUser: 0,
     scoreCpu: 0,
-    userPitIdx: 0,
+    userPitIdx: safeStarter,
     cpuPitIdx: 0,
   });
   useEffect(() => {
