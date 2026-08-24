@@ -98,7 +98,7 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number, 
           {TEAMS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setUser(t)}
+              onClick={() => { setUser(t); setStarterIdx(0); }}
               className={`rounded-xl p-4 text-left transition-all border-2 ${
                 user?.id === t.id ? "scale-[1.02] shadow-2xl" : "border-transparent hover:scale-[1.01]"
               }`}
