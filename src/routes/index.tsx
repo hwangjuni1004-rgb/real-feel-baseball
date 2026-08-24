@@ -670,8 +670,8 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
         <div>
           {(() => {
             const curPitchCount = userBats
-              ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
-              : (state.userPitchCounts[state.userPitIdx] ?? 0);
+              ? effCount("cpu", state.cpuPitIdx)
+              : effCount("user", state.userPitIdx);
             const stamina = clamp(100 - curPitchCount * 1.6, 0, 100);
             const onPitchThrown = () => incPitchCount(userBats ? "cpu" : "user", userBats ? state.cpuPitIdx : state.userPitIdx);
             return userBats ? (
@@ -739,16 +739,18 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
               );
             })()}
             {(() => {
-              const cnt = userBats
-                ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
-                : (state.userPitchCounts[state.userPitIdx] ?? 0);
-              const stamina = clamp(100 - cnt * 1.6, 0, 100);
+              const side: "user" | "cpu" = userBats ? "cpu" : "user";
+              const idx = userBats ? state.cpuPitIdx : state.userPitIdx;
+              const cnt = rawCount(side, idx);
+              const eff = effCount(side, idx);
+              const isStarter = side === "user" && idx === safeStarter;
+              const stamina = clamp(100 - eff * 1.6, 0, 100);
               const barColor = stamina > 60 ? "bg-emerald-400" : stamina > 30 ? "bg-yellow-400" : "bg-red-500";
               return (
                 <div className="mt-2">
                   <div className="flex justify-between text-[10px] text-white/60">
-                    <span>체력</span>
-                    <span>{Math.round(stamina)} · 투구수 {cnt}</span>
+                    <span>체력{isStarter && <span className="ml-1 px-1 rounded bg-yellow-400 text-black font-black">선발</span>}</span>
+                    <span>{Math.round(stamina)} · 투구수 {cnt}{isStarter && " (선발 보정)"}</span>
                   </div>
                   <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <div className={`h-full ${barColor} transition-all`} style={{ width: `${stamina}%` }} />
