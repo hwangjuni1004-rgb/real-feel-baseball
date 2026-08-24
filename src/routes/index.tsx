@@ -481,7 +481,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
 
 
 
-  const advanceCount = (result: "ball" | "strike" | "foul") => {
+  const advanceCount = (result: "ball" | "strike" | "foul" | "hbp") => {
     setState((s) => {
       let { balls, strikes, outs } = s;
       let bases = [...s.bases] as [boolean, boolean, boolean];
@@ -916,7 +916,7 @@ function PitcherView({
   bases, onPickoff, onCpuSteal, battingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
-  onCount: (r: "ball" | "strike" | "foul") => void;
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   rotation: Pitcher[];
   currentIdx: number;
@@ -1163,7 +1163,7 @@ function simulateCpuBatter(
   actual: PitchLoc,
   batter: Batter,
   pitchType: PitchType,
-  onCount: (r: "ball" | "strike" | "foul") => void,
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
@@ -1235,7 +1235,7 @@ function BatterView({
   batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
-  onCount: (r: "ball" | "strike" | "foul") => void;
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
