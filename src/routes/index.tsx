@@ -51,14 +51,16 @@ function Game() {
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
   const [innings, setInnings] = useState<number>(3);
+  const [starterIdx, setStarterIdx] = useState<number>(0);
 
   if (phase === "team-select") {
     return (
       <TeamSelect
-        onStart={(u, c, inn) => {
+        onStart={(u, c, inn, starter) => {
           setUserTeam(u);
           setCpuTeam(c);
           setInnings(inn);
+          setStarterIdx(starter);
           setPhase("playing");
         }}
       />
@@ -71,6 +73,7 @@ function Game() {
         userTeam={userTeam}
         cpuTeam={cpuTeam}
         innings={innings}
+        starterIdx={starterIdx}
         onFinish={() => setPhase("team-select")}
       />
     );
@@ -79,8 +82,9 @@ function Game() {
 }
 
 // ---------- Team Select ----------
-function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) => void }) {
+function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number, starterIdx: number) => void }) {
   const [user, setUser] = useState<Team | null>(null);
+  const [starterIdx, setStarterIdx] = useState<number>(0);
   const [innings, setInnings] = useState<number>(3);
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white px-4 py-10">
@@ -94,7 +98,7 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) 
           {TEAMS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setUser(t)}
+              onClick={() => { setUser(t); setStarterIdx(0); }}
               className={`rounded-xl p-4 text-left transition-all border-2 ${
                 user?.id === t.id ? "scale-[1.02] shadow-2xl" : "border-transparent hover:scale-[1.01]"
               }`}
@@ -109,6 +113,41 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) 
             </button>
           ))}
         </div>
+        {user && (
+          <div className="mt-8">
+            <div className="text-sm font-bold mb-1">⚾ 선발 투수 선택</div>
+            <div className="text-xs text-yellow-300/90 mb-3">선발로 정한 투수는 체력 소모가 크게 줄어(약 3배) 오래 던질 수 있습니다.</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {user.rotation.map((p, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStarterIdx(i)}
+                  className={`rounded-lg p-3 text-left border-2 transition ${
+                    starterIdx === i
+                      ? "bg-yellow-400/20 border-yellow-300 shadow-lg"
+                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="font-bold text-sm flex items-center gap-1 flex-wrap">
+                    {p.legend ? (
+                      <span className="text-yellow-300 italic font-black">{p.name}</span>
+                    ) : (
+                      p.name
+                    )}
+                    {starterIdx === i && <span className="text-[9px] px-1 rounded bg-yellow-400 text-black font-black">선발</span>}
+                  </div>
+                  {p.legend && p.nickname && (
+                    <div className="text-[10px] italic text-yellow-100/80">«{p.nickname}»</div>
+                  )}
+                  <div className="text-[11px] opacity-70 mt-0.5">
+                    {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
+                  </div>
+                  {p.sig && <div className="text-[10px] text-rose-300">◆ {p.sig}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-8 flex flex-col items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/60 mr-2">경기 이닝</span>
@@ -132,7 +171,7 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number) 
               if (!user) return;
               const others = TEAMS.filter((t) => t.id !== user.id);
               const cpu = others[Math.floor(Math.random() * others.length)];
-              onStart(user, cpu, innings);
+              onStart(user, cpu, innings, starterIdx);
             }}
             className="px-8 py-3 rounded-lg bg-yellow-400 text-black font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
           >
@@ -173,8 +212,9 @@ export function formatIP(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; onFinish: () => void }) {
+function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: () => void }) {
   const INNINGS = innings;
+  const safeStarter = clamp(starterIdx, 0, userTeam.rotation.length - 1);
   const [state, setState] = useState<GameState>({
     inning: 1,
     half: "top",
@@ -185,7 +225,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     scoreCpu: 0,
     userBatIdx: 0,
     cpuBatIdx: 0,
-    userPitIdx: 0,
+    userPitIdx: safeStarter,
     cpuPitIdx: 0,
     bases: [false, false, false],
     userPitchersOut: [],
@@ -196,8 +236,15 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     cpuPitOuts: cpuTeam.rotation.map(() => 0),
     userPitRuns: userTeam.rotation.map(() => 0),
     cpuPitRuns: cpuTeam.rotation.map(() => 0),
-    log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작!`],
+    log: [`▶ ${userTeam.name} vs ${cpuTeam.name} 경기 시작! 선발: ${userTeam.rotation[safeStarter]?.name}`],
   });
+
+  // 선발 투수는 체력 소모 35%만 적용 (약 3배 오래 던짐)
+  const STARTER_STAMINA_FACTOR = 0.35;
+  const rawCount = (side: "user" | "cpu", idx: number) =>
+    (side === "user" ? state.userPitchCounts[idx] : state.cpuPitchCounts[idx]) ?? 0;
+  const effCount = (side: "user" | "cpu", idx: number) =>
+    rawCount(side, idx) * (side === "user" && idx === safeStarter ? STARTER_STAMINA_FACTOR : 1);
 
   // ---- 승리/패전/세이브/홀드 기록 ----
   type Side = "user" | "cpu";
@@ -207,7 +254,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     loseIdx: 0,
   });
   const stintsRef = useRef<{ side: Side; idx: number; leadAtEnter: number; leadAtExit: number | null }[]>([
-    { side: "user", idx: 0, leadAtEnter: 0, leadAtExit: null },
+    { side: "user", idx: safeStarter, leadAtEnter: 0, leadAtExit: null },
     { side: "cpu", idx: 0, leadAtEnter: 0, leadAtExit: null },
   ]);
   const prevLeadRef = useRef(0);
@@ -292,7 +339,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
     outs: 0,
     scoreUser: 0,
     scoreCpu: 0,
-    userPitIdx: 0,
+    userPitIdx: safeStarter,
     cpuPitIdx: 0,
   });
   useEffect(() => {
@@ -434,7 +481,7 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
 
 
 
-  const advanceCount = (result: "ball" | "strike" | "foul") => {
+  const advanceCount = (result: "ball" | "strike" | "foul" | "hbp") => {
     setState((s) => {
       let { balls, strikes, outs } = s;
       let bases = [...s.bases] as [boolean, boolean, boolean];
@@ -462,6 +509,20 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
           balls = 0;
           strikes = 0;
         }
+      } else if (result === "hbp") {
+        // 몸에 맞는 공: 볼넷과 동일한 포스 진루 규칙 적용
+        log = [`🤕 ${batter.name} 몸에 맞는 공! 출루`, ...log];
+        const hbpResult = pushRunner(bases);
+        bases = hbpResult.bases;
+        if (hbpResult.scored) {
+          if (userBats) scoreUser++;
+          else scoreCpu++;
+          log = [`🏃 밀어내기 득점! (${hbpResult.scored}점)`, ...log];
+        }
+        if (userBats) userBatIdx++;
+        else cpuBatIdx++;
+        balls = 0;
+        strikes = 0;
       } else if (result === "strike") {
         strikes++;
         if (strikes >= 3) {
@@ -623,8 +684,8 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
         <div>
           {(() => {
             const curPitchCount = userBats
-              ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
-              : (state.userPitchCounts[state.userPitIdx] ?? 0);
+              ? effCount("cpu", state.cpuPitIdx)
+              : effCount("user", state.userPitIdx);
             const stamina = clamp(100 - curPitchCount * 1.6, 0, 100);
             const onPitchThrown = () => incPitchCount(userBats ? "cpu" : "user", userBats ? state.cpuPitIdx : state.userPitIdx);
             return userBats ? (
@@ -692,16 +753,18 @@ function Match({ userTeam, cpuTeam, innings, onFinish }: { userTeam: Team; cpuTe
               );
             })()}
             {(() => {
-              const cnt = userBats
-                ? (state.cpuPitchCounts[state.cpuPitIdx] ?? 0)
-                : (state.userPitchCounts[state.userPitIdx] ?? 0);
-              const stamina = clamp(100 - cnt * 1.6, 0, 100);
+              const side: "user" | "cpu" = userBats ? "cpu" : "user";
+              const idx = userBats ? state.cpuPitIdx : state.userPitIdx;
+              const cnt = rawCount(side, idx);
+              const eff = effCount(side, idx);
+              const isStarter = side === "user" && idx === safeStarter;
+              const stamina = clamp(100 - eff * 1.6, 0, 100);
               const barColor = stamina > 60 ? "bg-emerald-400" : stamina > 30 ? "bg-yellow-400" : "bg-red-500";
               return (
                 <div className="mt-2">
                   <div className="flex justify-between text-[10px] text-white/60">
-                    <span>체력</span>
-                    <span>{Math.round(stamina)} · 투구수 {cnt}</span>
+                    <span>체력{isStarter && <span className="ml-1 px-1 rounded bg-yellow-400 text-black font-black">선발</span>}</span>
+                    <span>{Math.round(stamina)} · 투구수 {cnt}{isStarter && " (선발 보정)"}</span>
                   </div>
                   <div className="mt-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <div className={`h-full ${barColor} transition-all`} style={{ width: `${stamina}%` }} />
@@ -853,7 +916,7 @@ function PitcherView({
   bases, onPickoff, onCpuSteal, battingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
-  onCount: (r: "ball" | "strike" | "foul") => void;
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   rotation: Pitcher[];
   currentIdx: number;
@@ -1100,7 +1163,7 @@ function simulateCpuBatter(
   actual: PitchLoc,
   batter: Batter,
   pitchType: PitchType,
-  onCount: (r: "ball" | "strike" | "foul") => void,
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void,
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void,
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
@@ -1128,6 +1191,11 @@ function simulateCpuBatter(
 
   if (!swings) {
     if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
+    // 사구: 타자 몸쪽(우타=존 좌측 끝, 좌타=우측 끝) 깊게 빠진 공 + 스윙 안함 → 일정 확률로 몸에 맞음
+    const insideCol = batter.bats === "L" ? 4 : 0;
+    if (actual.col === insideCol && actual.row >= 1 && actual.row <= 3 && Math.random() < 0.12) {
+      setMsg("몸에 맞는 공!"); onCount("hbp"); return "사구";
+    }
     setMsg("볼"); onCount("ball"); return "볼";
   }
   // 대표(결정구) 구종은 피안타율이 더 낮음
@@ -1172,7 +1240,7 @@ function BatterView({
   batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
-  onCount: (r: "ball" | "strike" | "foul") => void;
+  onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
   onSteal: () => void;
@@ -1232,11 +1300,14 @@ function BatterView({
     setTimeout(() => {
       if (!swungRef.current) {
         const strike = inStrikeZone(actual);
-        const label = strike ? "스트라이크" : "볼";
-        setPhaseMsg(label);
+        // 사구: 몸쪽 깊은 공을 피하지 못하면 몸에 맞는 공
+        const insideCol = batter.bats === "L" ? 4 : 0;
+        const isHbp = !strike && actual.col === insideCol && actual.row >= 1 && actual.row <= 3 && Math.random() < 0.12;
+        const label = isHbp ? "사구" : strike ? "스트라이크" : "볼";
+        setPhaseMsg(isHbp ? "몸에 맞는 공!" : label);
         setLastPitch({ name: type.name, speed, result: label });
         showOutcome(label, speed);
-        onCount(strike ? "strike" : "ball");
+        onCount(isHbp ? "hbp" : strike ? "strike" : "ball");
       }
       setPitch(null);
       setReady(false);
