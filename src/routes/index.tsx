@@ -113,6 +113,41 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number, 
             </button>
           ))}
         </div>
+        {user && (
+          <div className="mt-8">
+            <div className="text-sm font-bold mb-1">⚾ 선발 투수 선택</div>
+            <div className="text-xs text-yellow-300/90 mb-3">선발로 정한 투수는 체력 소모가 크게 줄어(약 3배) 오래 던질 수 있습니다.</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {user.rotation.map((p, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStarterIdx(i)}
+                  className={`rounded-lg p-3 text-left border-2 transition ${
+                    starterIdx === i
+                      ? "bg-yellow-400/20 border-yellow-300 shadow-lg"
+                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="font-bold text-sm flex items-center gap-1 flex-wrap">
+                    {p.legend ? (
+                      <span className="text-yellow-300 italic font-black">{p.name}</span>
+                    ) : (
+                      p.name
+                    )}
+                    {starterIdx === i && <span className="text-[9px] px-1 rounded bg-yellow-400 text-black font-black">선발</span>}
+                  </div>
+                  {p.legend && p.nickname && (
+                    <div className="text-[10px] italic text-yellow-100/80">«{p.nickname}»</div>
+                  )}
+                  <div className="text-[11px] opacity-70 mt-0.5">
+                    {p.throws === "L" ? "좌투" : "우투"} {SLOT_LABEL[p.slot ?? "over"]} · {p.velo}km/h · 제구 {p.control}
+                  </div>
+                  {p.sig && <div className="text-[10px] text-rose-300">◆ {p.sig}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-8 flex flex-col items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/60 mr-2">경기 이닝</span>
