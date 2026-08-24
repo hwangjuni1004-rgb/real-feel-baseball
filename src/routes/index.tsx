@@ -1191,6 +1191,11 @@ function simulateCpuBatter(
 
   if (!swings) {
     if (strike) { setMsg("루킹 스트라이크!"); onCount("strike"); return "루킹 스트라이크"; }
+    // 사구: 타자 몸쪽(우타=존 좌측 끝, 좌타=우측 끝) 깊게 빠진 공 + 스윙 안함 → 일정 확률로 몸에 맞음
+    const insideCol = batter.bats === "L" ? 4 : 0;
+    if (actual.col === insideCol && actual.row >= 1 && actual.row <= 3 && Math.random() < 0.12) {
+      setMsg("몸에 맞는 공!"); onCount("hbp"); return "사구";
+    }
     setMsg("볼"); onCount("ball"); return "볼";
   }
   // 대표(결정구) 구종은 피안타율이 더 낮음
