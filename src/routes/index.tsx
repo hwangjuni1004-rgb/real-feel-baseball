@@ -171,7 +171,7 @@ function TeamSelect({ onStart }: { onStart: (u: Team, c: Team, innings: number, 
               if (!user) return;
               const others = TEAMS.filter((t) => t.id !== user.id);
               const cpu = others[Math.floor(Math.random() * others.length)];
-              onStart(user, cpu, innings);
+              onStart(user, cpu, innings, starterIdx);
             }}
             className="px-8 py-3 rounded-lg bg-yellow-400 text-black font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
           >
