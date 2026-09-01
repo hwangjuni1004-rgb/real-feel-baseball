@@ -1761,12 +1761,16 @@ function StrikeZone({
         }
       `}</style>
 
-      {/* 존 위를 휩쓸고 지나가는 배트 */}
-      {swinging && (
+      {/* 존 위를 휩쓸고 지나가는 배트 (존 실제 크기에 맞춰) */}
+      {swinging && pov === "batter" && (
         <svg
-          className="absolute left-1/2 top-1/2 z-[25] pointer-events-none"
-          width="70%" height="70%" viewBox="0 0 200 200"
+          className="absolute z-[25] pointer-events-none"
+          viewBox="0 0 200 200"
           style={{
+            left: `${G.cx}%`,
+            top: `${G.cy}%`,
+            width: `${G.w * 3.4}%`,
+            height: `${G.h * 3.4}%`,
             transform: "translate(-50%, -50%)",
             transformOrigin: "center",
             animation: "zoneBatSwing 0.38s ease-out forwards",
@@ -1785,8 +1789,8 @@ function StrikeZone({
         <div
           className="absolute z-[28] pointer-events-none"
           style={{
-            left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-            top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
+            left: `${ballPos.left}%`,
+            top: `${ballPos.top}%`,
             animation: "contactSpark 0.5s ease-out forwards",
           }}
         >
@@ -1797,6 +1801,17 @@ function StrikeZone({
           </div>
         </div>
       )}
+
+      {/* 타구 궤적 + 9인 수비 개별 움직임 */}
+      {battedBall && battingTeam && (
+        <FieldPlay
+          key={battedBall.id}
+          kind={battedBall.kind}
+          color={battingTeam.color === "#000000" ? "#334155" : battingTeam.color}
+          accent={battingTeam.accent}
+        />
+      )}
+
 
       {/* 홈런 - 팀 유니폼 입은 선수가 베이스를 도는 모션 */}
       {hitLabel?.kind === "homer" && battingTeam && (
