@@ -1474,6 +1474,7 @@ function BatterView({
 // ---------- Strike Zone ----------
 function StrikeZone({
   target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam, pitchOutcome,
+  pov = "batter", battedBall,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -1485,74 +1486,172 @@ function StrikeZone({
   hitLabel?: { text: string; kind: "single" | "double" | "triple" | "homer" } | null;
   battingTeam?: Team;
   pitchOutcome?: { text: string; speed: number } | null;
+  /** batter = 타석 시점, pitcher = 마운드(투수 등뒤) 시점 */
+  pov?: "batter" | "pitcher";
+  battedBall?: { kind: BattedKind; id: number } | null;
 }) {
-  const [ballPos, setBallPos] = useState<{ x: number; y: number; scale: number; z: number } | null>(null);
+  const [ballPos, setBallPos] = useState<{ left: number; top: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
-  const [windup, setWindup] = useState(false);
+  const [stage, setStage] = useState<"set" | "wind" | "release">("set");
+
+  /**
+   * 실제 규격 비율(화면 세로 = 약 3.0m 기준)
+   * - 스트라이크 존 폭 43cm ≒ 화면의 16%, 높이 약 55cm ≒ 화면의 19%
+   * - 5x5 그리드는 존의 5/3 크기 → 폭 27%, 높이 32%
+   * 투수 시점은 18.44m 뒤에서 보므로 원근 축소.
+   */
+  const G = pov === "pitcher"
+    ? { cx: 50, cy: 40, w: 17, h: 20 }
+    : { cx: 50, cy: 50, w: 27, h: 32 };
+  const gx = (col: number) => G.cx - G.w / 2 + ((col + 0.5) / 5) * G.w;
+  const gy = (row: number) => G.cy - G.h / 2 + ((row + 0.5) / 5) * G.h;
 
   useEffect(() => {
-    if (!pitch) { setBallPos(null); setWindup(false); return; }
-    setWindup(true);
+    if (!pitch) { setBallPos(null); setStage("set"); return; }
+    setStage("wind");
     const anim = () => {
       const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
-      // 릴리스 포인트: 투구 폼 + 좌/우투에 따라 시작점이 달라짐
       const armSide = pitcher?.throws === "L" ? -1 : 1;
       const slot = pitcher?.slot ?? "over";
-      const sideOffset = slot === "over" ? 0.35 : slot === "side" ? 1.15 : 1.5;
-      const startX = 2 + armSide * sideOffset;
-      const startY = slot === "over" ? 1.2 : slot === "side" ? 2.1 : 3.1;
-      const endX = pitch.actual.col, endY = pitch.actual.row;
-      const midX = (startX + endX) / 2 + pitch.type.break.x * 0.5;
-      const midY = (startY + endY) / 2 - pitch.type.break.y * 0.3;
-      const bx = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
-      const by = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
-      // ---- 3D 원근 투영: 공이 멀리(마운드)서 소실점에 모여 있다가 앞으로 튀어나옴 ----
-      const vpX = 2, vpY = 0.9; // 소실점(마운드 릴리스 지점)
-      const persp = 0.26 + 0.74 * Math.pow(t, 1.55);
-      const x = vpX + (bx - vpX) * persp;
-      const y = vpY + (by - vpY) * persp;
-      const scale = 0.16 + 1.15 * Math.pow(t, 2.2); // 거리에 따른 크기(원근)
-      setBallPos({ x, y, scale, z: 1 - t });
-      if (t > 0.15) setWindup(false);
+      // 릴리스 포인트(폼별 팔 높이 / 좌우투에 따른 좌우 위치)
+      const sideOffset = slot === "over" ? 2 : slot === "side" ? 6.5 : 8.5;
+      const relHeight = slot === "over" ? 20 : slot === "side" ? 27 : 34;
+      // 투수 시점이면 좌우가 반대로 보인다
+      const mirror = pov === "pitcher" ? -1 : 1;
+      const startX = pov === "pitcher" ? 50 + armSide * mirror * sideOffset * 1.6 : 50 + armSide * sideOffset;
+      const startY = pov === "pitcher" ? 78 : relHeight;
+      const endX = gx(pitch.actual.col), endY = gy(pitch.actual.row);
+      const midX = (startX + endX) / 2 + pitch.type.break.x * mirror * 3.0;
+      const midY = (startY + endY) / 2 - pitch.type.break.y * 1.8;
+      const left = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
+      const top = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
+      // 원근: 타석 시점은 커지며 다가오고, 투수 시점은 작아지며 멀어진다
+      const scale = pov === "pitcher"
+        ? 1.25 - 0.98 * Math.pow(t, 0.85)
+        : 0.16 + 1.25 * Math.pow(t, 2.2);
+      setBallPos({ left, top, scale, z: 1 - t });
+      if (t > 0.12) setStage("release");
       if (t < 1) animRef.current = requestAnimationFrame(anim);
     };
     animRef.current = requestAnimationFrame(anim);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [pitch, pitcher?.throws, pitcher?.slot]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pitch, pitcher?.throws, pitcher?.slot, pov]);
 
   const batterLeft = batter?.bats === "L";
 
   return (
     <div className="relative aspect-square bg-gradient-to-b from-sky-700 via-emerald-800 to-emerald-950 rounded-lg overflow-hidden border-2 border-white/20">
-      {/* 마운드 */}
-      <div className="absolute left-1/2 -translate-x-1/2 top-[8%] w-[45%] h-8 bg-amber-900/60 rounded-[50%] blur-[1px]" />
-      {/* 투수 (뒷모습, 작게) */}
-      {pitcher && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 top-[6%] transition-transform duration-200"
-          style={{
-            transform: `translateX(-50%) scale(${windup ? 1.1 : 1}) rotate(${
-              windup ? (pitcher.slot === "under" ? 6 : pitcher.slot === "side" ? -14 : -8) : 0
-            }deg)`,
-          }}
-        >
-          <PitcherSvg throws={pitcher.throws} windup={windup} slot={pitcher.slot ?? "over"} face={pitcher.face} legend={pitcher.legend} />
-          <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
-            {pitcher.legend ? <LegendName name={pitcher.name} size="xs" /> : pitcher.name}
-            <span className="ml-1 text-[8px] text-cyan-300">
-              {pitcher.throws === "L" ? "좌" : "우"}·{SLOT_LABEL[pitcher.slot ?? "over"]}
-            </span>
-          </div>
+      {/* 마운드 (타석 시점에서는 멀리, 투수 시점에서는 발 밑) */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 bg-amber-900/60 rounded-[50%] blur-[1px]"
+        style={pov === "pitcher"
+          ? { bottom: "2%", width: "70%", height: "16%" }
+          : { top: "16%", width: "34%", height: "5%" }}
+      />
 
-        </div>
+      {pov === "batter" ? (
+        <>
+          {/* 홈플레이트 (타석 시점: 발 밑) */}
+          <div className="absolute left-1/2 bottom-3 -translate-x-1/2 w-24 h-6 bg-white/90"
+            style={{ clipPath: "polygon(0 0, 100% 0, 85% 100%, 15% 100%)" }} />
+          {/* 18.44m 떨어진 투수: 실제 신장 1.85m → 원근 축소(화면 높이의 약 14%) */}
+          {pitcher && (
+            <div
+              className="absolute left-1/2 z-[5]"
+              style={{
+                top: "8%",
+                height: "14%",
+                aspectRatio: "52 / 62",
+                transform: `translateX(-50%) scale(${stage === "wind" ? 1.06 : 1})`,
+                transformOrigin: "bottom center",
+                transition: "transform 160ms",
+              }}
+            >
+              <PitcherSvg throws={pitcher.throws} stage={stage} slot={pitcher.slot ?? "over"} face={pitcher.face} legend={pitcher.legend} />
+            </div>
+          )}
+          {pitcher && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-[23%] z-[5] text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 whitespace-nowrap">
+              {pitcher.legend ? <LegendName name={pitcher.name} size="xs" /> : pitcher.name}
+              <span className="ml-1 text-[8px] text-cyan-300">
+                {pitcher.throws === "L" ? "좌" : "우"}·{SLOT_LABEL[pitcher.slot ?? "over"]}
+              </span>
+            </div>
+          )}
+          {/* 타자: 실제 신장 1.80m → 화면 높이의 약 60% */}
+          {batter && (
+            <div
+              className={`absolute bottom-[2%] z-20 ${batterLeft ? "right-[6%]" : "left-[6%]"}`}
+              style={{
+                height: "60%",
+                aspectRatio: "60 / 80",
+                transform: swinging ? `rotate(${batterLeft ? -22 : 22}deg)` : "rotate(0deg)",
+                transformOrigin: "bottom center",
+                transition: "transform 120ms",
+              }}
+            >
+              <BatterSvg bats={batter.bats} swinging={!!swinging} />
+            </div>
+          )}
+          {batter && (
+            <div className={`absolute bottom-0 z-20 text-[9px] text-white font-bold bg-black/50 rounded px-1 whitespace-nowrap ${batterLeft ? "right-[4%]" : "left-[4%]"}`}>
+              {batter.name}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* 투수 시점: 18.44m 앞의 타자·포수는 작게, 내 투수는 등뒤에서 크게 */}
+          {batter && (
+            <div
+              className="absolute z-[6]"
+              style={{
+                top: `${G.cy + G.h / 2 - 12}%`,
+                [batterLeft ? "left" : "right"]: "38%",
+                height: "22%",
+                aspectRatio: "60 / 80",
+                transform: `translateY(-4%) ${swinging ? `rotate(${batterLeft ? 20 : -20}deg)` : ""} scaleX(-1)`,
+                transformOrigin: "bottom center",
+                transition: "transform 120ms",
+              } as React.CSSProperties}
+            >
+              <BatterSvg bats={batter.bats} swinging={!!swinging} />
+            </div>
+          )}
+          {batter && (
+            <div className="absolute left-1/2 -translate-x-1/2 z-[6] text-[9px] text-white font-bold bg-black/50 rounded px-1 whitespace-nowrap"
+              style={{ top: `${G.cy + G.h / 2 + 11}%` }}>
+              {batter.name} ({batter.bats === "L" ? "좌" : batter.bats === "R" ? "우" : "양"}타)
+            </div>
+          )}
+          {/* 홈플레이트 (멀리) */}
+          <div className="absolute left-1/2 -translate-x-1/2 bg-white/80"
+            style={{ top: `${G.cy + G.h / 2 + 8}%`, width: "9%", height: "2%", clipPath: "polygon(0 0, 100% 0, 85% 100%, 15% 100%)" }} />
+          {/* 내 투수 (등뒤, 실제 신장 비율) */}
+          {pitcher && (
+            <div
+              className="absolute left-1/2 z-[24]"
+              style={{
+                bottom: "-4%",
+                height: "58%",
+                aspectRatio: "52 / 62",
+                transform: `translateX(-50%) scale(${stage === "wind" ? 1.05 : 1})`,
+                transformOrigin: "bottom center",
+                transition: "transform 160ms",
+              }}
+            >
+              <PitcherSvg throws={pitcher.throws} stage={stage} slot={pitcher.slot ?? "over"} face={pitcher.face} legend={pitcher.legend} back />
+            </div>
+          )}
+        </>
       )}
 
-      {/* 홈플레이트 */}
-      <div className="absolute left-1/2 bottom-3 -translate-x-1/2 w-24 h-6 bg-white/90"
-        style={{ clipPath: "polygon(0 0, 100% 0, 85% 100%, 15% 100%)" }} />
-
-      {/* 5x5 grid */}
-      <div className="absolute inset-6 grid grid-cols-5 grid-rows-5 gap-0 z-10">
+      {/* 5x5 그리드 - 실제 존 규격 비율 */}
+      <div
+        className="absolute grid grid-cols-5 grid-rows-5 z-10"
+        style={{ left: `${G.cx - G.w / 2}%`, top: `${G.cy - G.h / 2}%`, width: `${G.w}%`, height: `${G.h}%` }}
+      >
         {Array.from({ length: 25 }).map((_, i) => {
           const col = (i % 5) as PitchLoc["col"];
           const row = Math.floor(i / 5) as PitchLoc["row"];
@@ -1563,45 +1662,31 @@ function StrikeZone({
               key={i}
               onClick={() => onSelect({ col, row })}
               className={`border transition ${
-                isStrike ? "border-yellow-300/40" : "border-white/5"
+                isStrike ? "border-yellow-300/40" : "border-white/10"
               } ${isTarget ? "bg-yellow-300/50 ring-2 ring-yellow-200" : "hover:bg-white/10"}`}
             />
           );
         })}
       </div>
 
-      {/* 스트라이크 존 외곽 강조 */}
+      {/* 스트라이크 존 외곽 (가운데 3x3 = 폭 43cm / 무릎~가슴) */}
       <div className="absolute pointer-events-none border-2 border-yellow-300/90 rounded-sm z-10"
         style={{
-          left: `calc(6px + 20% * 1 + 4px)`,
-          top: `calc(6px + 20% * 1 + 4px)`,
-          width: `calc(60% - 8px)`,
-          height: `calc(60% - 8px)`,
+          left: `${G.cx - G.w / 2 + G.w / 5}%`,
+          top: `${G.cy - G.h / 2 + G.h / 5}%`,
+          width: `${(G.w * 3) / 5}%`,
+          height: `${(G.h * 3) / 5}%`,
         }}
       />
-
-      {/* 타자 */}
-      {batter && (
-        <div
-          className={`absolute bottom-1 z-20 transition-transform duration-150 ${batterLeft ? "right-2" : "left-2"}`}
-          style={{ transform: `${swinging ? "rotate(" + (batterLeft ? "-" : "") + "35deg)" : "rotate(0deg)"}` }}
-        >
-          <BatterSvg bats={batter.bats} swinging={!!swinging} />
-          <div className="text-[9px] text-center text-white font-bold bg-black/50 rounded px-1 mt-0.5 whitespace-nowrap">
-            {batter.name}
-          </div>
-        </div>
-      )}
 
       {/* 날아오는 공 (3D 원근 + 그라운드 그림자) */}
       {ballPos && (
         <>
-          {/* 지면 그림자: 공이 가까워질수록 아래로 크게 */}
           <div
             className="absolute rounded-[50%] bg-black/45 pointer-events-none z-20"
             style={{
-              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-              top: `calc(${(ballPos.y / 5) * 100}% + 10% + ${18 + (1 - ballPos.z) * 26}px)`,
+              left: `${ballPos.left}%`,
+              top: `calc(${ballPos.top}% + ${18 + (1 - ballPos.z) * 26}px)`,
               width: `${16 * ballPos.scale + 4}px`,
               height: `${6 * ballPos.scale + 2}px`,
               transform: "translate(-50%, -50%)",
@@ -1609,13 +1694,12 @@ function StrikeZone({
               opacity: 0.25 + (1 - ballPos.z) * 0.45,
             }}
           />
-          {/* 3D 구체 */}
           <div
             className="absolute w-6 h-6 rounded-full pointer-events-none z-30"
             style={{
-              left: `calc(${(ballPos.x / 5) * 100}% + 10%)`,
-              top: `calc(${(ballPos.y / 5) * 100}% + 10%)`,
-              transform: `translate(-50%, -50%) scale(${ballPos.scale}) rotateZ(${(1 - ballPos.z) * 540}deg)`,
+              left: `${ballPos.left}%`,
+              top: `${ballPos.top}%`,
+              transform: `translate(-50%, -50%) scale(${Math.max(0.12, ballPos.scale)}) rotateZ(${(1 - ballPos.z) * 540}deg)`,
               transformStyle: "preserve-3d",
               background:
                 "radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 45%, #94a3b8 78%, #475569 100%)",
@@ -1629,6 +1713,7 @@ function StrikeZone({
           </div>
         </>
       )}
+
 
 
       {pitch && showActual === undefined && (
