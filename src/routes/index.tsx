@@ -1474,7 +1474,7 @@ function BatterView({
 // ---------- Strike Zone ----------
 function StrikeZone({
   target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam, pitchOutcome,
-  pov = "batter", battedBall,
+  pov = "batter", battedBall, fieldingTeam,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -1489,6 +1489,7 @@ function StrikeZone({
   /** batter = 타석 시점, pitcher = 마운드(투수 등뒤) 시점 */
   pov?: "batter" | "pitcher";
   battedBall?: { kind: BattedKind; id: number } | null;
+  fieldingTeam?: Team;
 }) {
   const [ballPos, setBallPos] = useState<{ left: number; top: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
@@ -1807,8 +1808,8 @@ function StrikeZone({
         <FieldPlay
           key={battedBall.id}
           kind={battedBall.kind}
-          color={battingTeam.color === "#000000" ? "#334155" : battingTeam.color}
-          accent={battingTeam.accent}
+          color={(fieldingTeam ?? battingTeam).color === "#000000" ? "#334155" : (fieldingTeam ?? battingTeam).color}
+          accent={(fieldingTeam ?? battingTeam).accent}
         />
       )}
 
