@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FieldPlay, type BattedKind } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
@@ -1878,23 +1879,52 @@ function StrikeZone({
   );
 }
 
-function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "L" | "R"; windup: boolean; slot?: ArmSlot; face?: PitcherFace; legend?: boolean }) {
-  const flip = throws === "L" ? -1 : 1;
+function PitcherSvg({
+  throws, stage = "set", slot = "over", face, legend, back,
+}: {
+  throws: "L" | "R";
+  stage?: "set" | "wind" | "release";
+  slot?: ArmSlot;
+  face?: PitcherFace;
+  legend?: boolean;
+  /** 등뒤(투수 시점) 렌더링 */
+  back?: boolean;
+}) {
+  // 좌완은 좌우 반전. 등뒤 시점은 한 번 더 반전(뒤에서 보면 팔이 반대쪽)
+  const flip = (throws === "L" ? -1 : 1) * (back ? -1 : 1);
 
-  // 폼별 팔 각도: 와인드업(뒤로) → 릴리스(앞으로)
-  const arm = {
-    over: { wind: { x: 40, y: 6 }, rel: { x: 33, y: 6 }, elbow: { x: 36, y: 12 } },
-    side: { wind: { x: 44, y: 22 }, rel: { x: 40, y: 26 }, elbow: { x: 38, y: 23 } },
-    under: { wind: { x: 40, y: 44 }, rel: { x: 36, y: 40 }, elbow: { x: 34, y: 36 } },
-  }[slot];
+  /**
+   * 투구폼별 3단계 모션
+   * 오버핸드 : 팔을 머리 위로 세워 내리꽂음
+   * 사이드암 : 어깨 높이에서 옆으로 뿌림
+   * 언더핸드 : 허리 아래에서 아래→위로 올려 던짐
+   */
+  const FORM = {
+    over: {
+      set: { hand: { x: 20, y: 30 }, elbow: { x: 26, y: 28 }, lean: 2, stride: 0 },
+      wind: { hand: { x: 41, y: 2 }, elbow: { x: 35, y: 13 }, lean: -6, stride: 0.4 },
+      release: { hand: { x: 30, y: 4 }, elbow: { x: 33, y: 15 }, lean: 14, stride: 1 },
+    },
+    side: {
+      set: { hand: { x: 20, y: 30 }, elbow: { x: 26, y: 28 }, lean: -4, stride: 0 },
+      wind: { hand: { x: 47, y: 20 }, elbow: { x: 39, y: 22 }, lean: -22, stride: 0.4 },
+      release: { hand: { x: 38, y: 27 }, elbow: { x: 34, y: 25 }, lean: -12, stride: 1 },
+    },
+    under: {
+      set: { hand: { x: 22, y: 32 }, elbow: { x: 26, y: 30 }, lean: -8, stride: 0 },
+      wind: { hand: { x: 44, y: 47 }, elbow: { x: 37, y: 42 }, lean: -32, stride: 0.4 },
+      release: { hand: { x: 33, y: 33 }, elbow: { x: 34, y: 40 }, lean: -20, stride: 1 },
+    },
+  }[slot][stage];
 
-  const hand = windup ? arm.wind : arm.rel;
-  // 상체 기울기: 사이드암은 옆으로, 언더핸드는 더 깊게
-  const lean = slot === "over" ? 0 : slot === "side" ? -16 : -26;
-  const bodyLean = windup ? lean : lean * 0.6;
+  const frontKneeX = 15 - FORM.stride * 6;
+  const frontKneeY = 57 - FORM.stride * 3;
 
   return (
-    <svg width="52" height="62" viewBox="0 0 52 62" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.55))" }}>
+    <svg
+      width="100%" height="100%" viewBox="0 0 52 62" preserveAspectRatio="xMidYMax meet"
+      style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.55))", overflow: "visible" }}
+    >
       <defs>
         <linearGradient id="pUni" x1="0" y1="0" x2="1" y2="0.4">
           <stop offset="0%" stopColor="#ffffff" />
@@ -1915,25 +1945,24 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
           <stop offset="100%" stopColor="#1e293b" />
         </linearGradient>
       </defs>
-      {/* 지면 그림자 (입체감) */}
       <ellipse cx="23" cy="59" rx="15" ry="3.5" fill="rgba(0,0,0,0.35)" />
-      <g style={{ transform: `rotate(${bodyLean}deg)`, transformOrigin: "23px 40px", transition: "transform 150ms" }}>
-        {/* 바지 / 다리 (폼별 스탠스) */}
-        <line x1="21" y1="40" x2={slot === "under" ? 10 : 15} y2="57" stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
-        <line x1="26" y1="40" x2={slot === "over" ? 30 : 34} y2={slot === "over" ? 57 : 52} stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round" />
-        {/* 신발 */}
-        <ellipse cx={slot === "under" ? 9 : 14} cy="58" rx="5" ry="2.5" fill="#0f172a" />
-        <ellipse cx={slot === "over" ? 31 : 35} cy={slot === "over" ? 58 : 53} rx="5" ry="2.5" fill="#0f172a" />
-        {/* 유니폼 몸통 */}
+      <g style={{ transform: `rotate(${FORM.lean}deg)`, transformOrigin: "23px 42px", transition: "transform 140ms linear" }}>
+        {/* 다리 - 스트라이드 */}
+        <line x1="21" y1="40" x2={frontKneeX} y2={frontKneeY} stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round"
+          style={{ transition: "all 140ms linear" }} />
+        <line x1="26" y1="40" x2={30 + FORM.stride * 5} y2={57 - FORM.stride * 6} stroke="url(#pPants)" strokeWidth="5" strokeLinecap="round"
+          style={{ transition: "all 140ms linear" }} />
+        <ellipse cx={frontKneeX - 1} cy={frontKneeY + 1} rx="5" ry="2.5" fill="#0f172a" />
+        <ellipse cx={31 + FORM.stride * 5} cy={58 - FORM.stride * 6} rx="5" ry="2.5" fill="#0f172a" />
+        {/* 몸통 */}
         <rect x="16" y="20" width="15" height="22" rx="4" fill="url(#pUni)" stroke="#222" strokeWidth="1" />
         <rect x="16" y="20" width="4.5" height="22" rx="2" fill="rgba(255,255,255,0.35)" />
-        {/* 머리 + 모자 + 얼굴 특징 */}
+        {/* 머리 */}
         {face?.longHair && <path d="M16 14 Q15 24 19 26 L27 26 Q31 24 30 14 Z" fill="#1b1b1b" />}
         <circle cx="23" cy="14" r="6" fill="url(#pSkin)" />
-
-        {face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
-        {face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
-        {face?.glasses && (
+        {!back && face?.beard && <path d="M18 15 Q23 22 28 15 Q27 20 23 21 Q19 20 18 15 Z" fill="#2b2b2b" />}
+        {!back && face?.mustache && <rect x="20.5" y="15.5" width="5" height="1.4" rx="0.7" fill="#2b2b2b" />}
+        {!back && face?.glasses && (
           <g stroke="#111" strokeWidth="0.7" fill="rgba(255,255,255,0.35)">
             <circle cx="21" cy="14" r="1.9" />
             <circle cx="26" cy="14" r="1.9" />
@@ -1942,24 +1971,20 @@ function PitcherSvg({ throws, windup, slot = "over", face, legend }: { throws: "
         )}
         {face?.headband && <rect x="17" y="11.4" width="12" height="1.8" fill="#dc2626" />}
         <path d="M17 12 Q23 5 29 12 L31 14 L15 14 Z" fill="url(#pCap)" />
-        <rect x="14" y="13" width="8" height="2" fill="url(#pCap)" />
-
+        {!back && <rect x="14" y="13" width="8" height="2" fill="url(#pCap)" />}
+        {back && <rect x="24" y="13" width="8" height="2" fill="url(#pCap)" />}
         {legend && <circle cx="23" cy="14" r="9.5" fill="none" stroke="rgba(253,224,71,0.55)" strokeWidth="0.8" />}
-        {/* 던지는 팔 (어깨→팔꿈치→손, 폼별 궤도) */}
+        {/* 던지는 팔 */}
         <polyline
-          points={`31,24 ${arm.elbow.x},${arm.elbow.y} ${hand.x},${hand.y}`}
-          fill="none"
-          stroke="#f5f5f5"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          points={`31,24 ${FORM.elbow.x},${FORM.elbow.y} ${FORM.hand.x},${FORM.hand.y}`}
+          fill="none" stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
           style={{ transition: "all 120ms linear" }}
         />
         {/* 글러브 팔 */}
-        <line x1="16" y1="26" x2={windup ? 8 : 12} y2={windup ? 30 : 36} stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" />
-        <circle cx={windup ? 6 : 11} cy={windup ? 31 : 38} r="3" fill="#78350f" />
-        {/* 공 (와인드업) */}
-        {windup && <circle cx={hand.x + 2} cy={hand.y} r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
+        <line x1="16" y1="26" x2={stage === "wind" ? 8 : 12} y2={stage === "wind" ? 30 : 36}
+          stroke="#f5f5f5" strokeWidth="4" strokeLinecap="round" style={{ transition: "all 140ms linear" }} />
+        <circle cx={stage === "wind" ? 6 : 11} cy={stage === "wind" ? 31 : 38} r="3" fill="#78350f" />
+        {stage === "wind" && <circle cx={FORM.hand.x + 2} cy={FORM.hand.y} r="2.5" fill="#fff" stroke="#dc2626" strokeWidth="0.5" />}
       </g>
     </svg>
   );
@@ -1991,7 +2016,8 @@ function RunnerSvg({ color, accent }: { color: string; accent: string }) {
 function BatterSvg({ bats, swinging }: { bats: "L" | "R" | "S"; swinging: boolean }) {
   const flip = bats === "L" ? -1 : 1;
   return (
-    <svg width="60" height="80" viewBox="0 0 60 80" style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.55))" }}>
+    <svg width="100%" height="100%" viewBox="0 0 60 80" preserveAspectRatio="xMidYMax meet"
+      style={{ transform: `scaleX(${flip})`, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.55))", overflow: "visible" }}>
       <defs>
         <linearGradient id="bUni" x1="0" y1="0" x2="1" y2="0.3">
           <stop offset="0%" stopColor="#f87171" />
