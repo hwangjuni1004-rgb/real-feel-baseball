@@ -1404,14 +1404,16 @@ function BatterView({
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
     if (q < 0.62) {
       const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
-      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); showBatted("fly"); markPending(); onHit("fly"); }
-      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); showBatted("ground"); markPending(); onHit("out"); }
+      // 수비 연출(포구/송구)이 끝난 뒤 아웃 처리 → 애니메이션이 끊기지 않음
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); showBatted("fly"); markPending(); setTimeout(() => onHit("fly"), 1900); }
+      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); showBatted("ground"); markPending(); setTimeout(() => onHit("out"), 1900); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 900); showBatted("ground"); markPending(); setTimeout(() => onHit("single"), 850); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1000); showBatted("line"); markPending(); setTimeout(() => onHit("double"), 950); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1100); showBatted("line"); markPending(); setTimeout(() => onHit("triple"), 1050); return; }
-    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1600); showBatted("homer"); markPending(); setTimeout(() => onHit("homer"), 1500);
+    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 1400); showBatted("ground"); markPending(); setTimeout(() => onHit("single"), 1800); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1500); showBatted("line"); markPending(); setTimeout(() => onHit("double"), 1900); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1600); showBatted("line"); markPending(); setTimeout(() => onHit("triple"), 2000); return; }
+    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1900); showBatted("homer"); markPending(); setTimeout(() => onHit("homer"), 2200);
+
   };
 
 
