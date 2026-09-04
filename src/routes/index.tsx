@@ -1099,6 +1099,8 @@ function PitcherView({
           pitchOutcome={pitchOutcome}
           pov="pitcher"
           battedBall={battedBall}
+          bases={bases}
+          outs={outs}
           fieldingTeam={fieldingTeam}
         />
 
@@ -1483,6 +1485,8 @@ function BatterView({
           battingTeam={battingTeam}
           pitchOutcome={pitchOutcome}
           battedBall={battedBall}
+          bases={bases}
+          outs={outs}
           fieldingTeam={fieldingTeam}
         />
 
@@ -1535,7 +1539,7 @@ function BatterView({
 // ---------- Strike Zone ----------
 function StrikeZone({
   target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam, pitchOutcome,
-  pov = "batter", battedBall, fieldingTeam,
+  pov = "batter", battedBall, fieldingTeam, bases, outs,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -1551,6 +1555,8 @@ function StrikeZone({
   pov?: "batter" | "pitcher";
   battedBall?: { kind: BattedKind; id: number } | null;
   fieldingTeam?: Team;
+  bases?: [boolean, boolean, boolean];
+  outs?: number;
 }) {
   const [ballPos, setBallPos] = useState<{ left: number; top: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
@@ -1563,7 +1569,7 @@ function StrikeZone({
    * 투수 시점은 18.44m 뒤에서 보므로 원근 축소.
    */
   const G = pov === "pitcher"
-    ? { cx: 50, cy: 40, w: 17, h: 20 }
+    ? { cx: 50, cy: 40, w: 22, h: 26 }
     : { cx: 50, cy: 50, w: 27, h: 32 };
   const gx = (col: number) => G.cx - G.w / 2 + ((col + 0.5) / 5) * G.w;
   const gy = (row: number) => G.cy - G.h / 2 + ((row + 0.5) / 5) * G.h;
@@ -1871,6 +1877,10 @@ function StrikeZone({
           kind={battedBall.kind}
           color={(fieldingTeam ?? battingTeam).color === "#000000" ? "#334155" : (fieldingTeam ?? battingTeam).color}
           accent={(fieldingTeam ?? battingTeam).accent}
+          bases={bases}
+          outs={outs}
+          runnerColor={battingTeam.color === "#000000" ? "#334155" : battingTeam.color}
+          runnerAccent={battingTeam.accent}
         />
       )}
 
