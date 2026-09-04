@@ -197,8 +197,8 @@ interface GameState {
   cpuBatIdx: number;
   userPitIdx: number;
   cpuPitIdx: number;
-  bases: [boolean, boolean, boolean];
-  outs: number; // 1, 2, 3
+  bases: [boolean, boolean, boolean]; // 1, 2, 3
+
   userPitchersOut: number[];
   cpuPitchersOut: number[];
   userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
