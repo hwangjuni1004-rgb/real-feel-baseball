@@ -412,6 +412,37 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
     });
   };
 
+  // ---- CPU 자동 투수 교체: 체력(투구수) + 실점 상황 고려 ----
+  useEffect(() => {
+    if (!userBats) return; // CPU가 마운드에 있을 때만
+    const idx = state.cpuPitIdx;
+    const pitches = rawCount("cpu", idx);
+    const runs = state.cpuPitRuns[idx] ?? 0;
+    const isStarter = idx === 0;
+    const limit = isStarter ? 95 : 35;
+    const tooTired = pitches >= limit;
+    const blownUp = runs >= (isStarter ? 4 : 3);
+    const shortLeash = runs >= 2 && pitches >= limit * 0.6;
+    if (!tooTired && !blownUp && !shortLeash) return;
+    const used = new Set([...state.cpuPitchersOut, idx]);
+    const next = cpuTeam.rotation.findIndex((_, i) => !used.has(i));
+    if (next < 0) return;
+    setState((s) => ({
+      ...s,
+      cpuPitIdx: next,
+      cpuPitchersOut: [...s.cpuPitchersOut, s.cpuPitIdx],
+      log: [
+        `🔄 ${cpuTeam.name} 투수 교체: ${cpuTeam.rotation[next]?.name} 등판 (${
+          blownUp ? `${runs}실점` : tooTired ? `${pitches}구 한계` : "체력 저하"
+        })`,
+        ...s.log,
+      ].slice(0, 30),
+    }));
+    stintsRef.current.push({ side: "cpu", idx: next, leadAtEnter: state.scoreCpu - state.scoreUser, leadAtExit: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userBats, state.cpuPitIdx, state.cpuPitchCounts, state.cpuPitRuns, state.outs, state.half]);
+
+
   const attemptSteal = (successRate = 0.6) => {
     setState((s) => {
       const bases = [...s.bases] as [boolean, boolean, boolean];
