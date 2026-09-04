@@ -197,7 +197,8 @@ interface GameState {
   cpuBatIdx: number;
   userPitIdx: number;
   cpuPitIdx: number;
-  bases: [boolean, boolean, boolean]; // 1, 2, 3
+  bases: [boolean, boolean, boolean];
+  outs: number; // 1, 2, 3
   userPitchersOut: number[];
   cpuPitchersOut: number[];
   userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
@@ -727,6 +728,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
                 onCount={advanceCount}
                 onHit={applyHit}
                 bases={state.bases}
+                outs={state.outs}
                 onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
                 battingTeam={userTeam}
                 fieldingTeam={cpuTeam}
@@ -745,6 +747,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
                 usedIdx={state.userPitchersOut}
                 onChangePitcher={changeUserPitcher}
                 bases={state.bases}
+                outs={state.outs}
                 onPickoff={attemptPickoff}
                 onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
                 battingTeam={cpuTeam}
@@ -947,7 +950,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal, battingTeam, fieldingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
+  bases, outs, onPickoff, onCpuSteal, battingTeam, fieldingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
@@ -957,6 +960,7 @@ function PitcherView({
   usedIdx: number[];
   onChangePitcher: (idx: number) => void;
   bases: [boolean, boolean, boolean];
+  outs: number;
   onPickoff: (auto: boolean) => { out: boolean };
   onCpuSteal: () => void;
   battingTeam: Team;
@@ -1288,12 +1292,13 @@ function simulateCpuBatter(
 
 // ---------- Batter View (user bats) ----------
 function BatterView({
-  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, fieldingTeam, pitcherFatigue, onPitchThrown,
+  batter, pitcher, onCount, onHit, bases, outs, onSteal, battingTeam, fieldingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
+  outs: number;
   onSteal: () => void;
   battingTeam: Team;
   fieldingTeam: Team;
