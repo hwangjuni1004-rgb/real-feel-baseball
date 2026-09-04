@@ -198,6 +198,7 @@ interface GameState {
   userPitIdx: number;
   cpuPitIdx: number;
   bases: [boolean, boolean, boolean]; // 1, 2, 3
+
   userPitchersOut: number[];
   cpuPitchersOut: number[];
   userPitchCounts: number[]; // 각 투수의 누적 투구 수 (rotation index 기준)
@@ -411,6 +412,37 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
       };
     });
   };
+
+  // ---- CPU 자동 투수 교체: 체력(투구수) + 실점 상황 고려 ----
+  useEffect(() => {
+    if (!userBats) return; // CPU가 마운드에 있을 때만
+    const idx = state.cpuPitIdx;
+    const pitches = rawCount("cpu", idx);
+    const runs = state.cpuPitRuns[idx] ?? 0;
+    const isStarter = idx === 0;
+    const limit = isStarter ? 95 : 35;
+    const tooTired = pitches >= limit;
+    const blownUp = runs >= (isStarter ? 4 : 3);
+    const shortLeash = runs >= 2 && pitches >= limit * 0.6;
+    if (!tooTired && !blownUp && !shortLeash) return;
+    const used = new Set([...state.cpuPitchersOut, idx]);
+    const next = cpuTeam.rotation.findIndex((_, i) => !used.has(i));
+    if (next < 0) return;
+    setState((s) => ({
+      ...s,
+      cpuPitIdx: next,
+      cpuPitchersOut: [...s.cpuPitchersOut, s.cpuPitIdx],
+      log: [
+        `🔄 ${cpuTeam.name} 투수 교체: ${cpuTeam.rotation[next]?.name} 등판 (${
+          blownUp ? `${runs}실점` : tooTired ? `${pitches}구 한계` : "체력 저하"
+        })`,
+        ...s.log,
+      ].slice(0, 30),
+    }));
+    stintsRef.current.push({ side: "cpu", idx: next, leadAtEnter: state.scoreCpu - state.scoreUser, leadAtExit: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userBats, state.cpuPitIdx, state.cpuPitchCounts, state.cpuPitRuns, state.outs, state.half]);
+
 
   const attemptSteal = (successRate = 0.6) => {
     setState((s) => {
@@ -696,6 +728,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
                 onCount={advanceCount}
                 onHit={applyHit}
                 bases={state.bases}
+                outs={state.outs}
                 onSteal={() => attemptSteal(clamp(0.72 + (speedOf(batter) - 5) * 0.035 + (batter.contact - 6) * 0.02, 0.55, 0.95))}
                 battingTeam={userTeam}
                 fieldingTeam={cpuTeam}
@@ -714,6 +747,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
                 usedIdx={state.userPitchersOut}
                 onChangePitcher={changeUserPitcher}
                 bases={state.bases}
+                outs={state.outs}
                 onPickoff={attemptPickoff}
                 onCpuSteal={() => attemptSteal(clamp(0.55 + (speedOf(cpuTeam.lineup[state.cpuBatIdx % cpuTeam.lineup.length]) - 5) * 0.03, 0.45, 0.85))}
                 battingTeam={cpuTeam}
@@ -916,7 +950,7 @@ function TeamBadge({ team, score, active }: { team: Team; score: number; active:
 const MAX_PICKOFFS = 3;
 function PitcherView({
   batter, pitcher, onCount, onHit, rotation, currentIdx, usedIdx, onChangePitcher,
-  bases, onPickoff, onCpuSteal, battingTeam, fieldingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
+  bases, outs, onPickoff, onCpuSteal, battingTeam, fieldingTeam, balls, strikes, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
@@ -926,6 +960,7 @@ function PitcherView({
   usedIdx: number[];
   onChangePitcher: (idx: number) => void;
   bases: [boolean, boolean, boolean];
+  outs: number;
   onPickoff: (auto: boolean) => { out: boolean };
   onCpuSteal: () => void;
   battingTeam: Team;
@@ -1068,6 +1103,8 @@ function PitcherView({
           pitchOutcome={pitchOutcome}
           pov="pitcher"
           battedBall={battedBall}
+          bases={bases}
+          outs={outs}
           fieldingTeam={fieldingTeam}
         />
 
@@ -1255,12 +1292,13 @@ function simulateCpuBatter(
 
 // ---------- Batter View (user bats) ----------
 function BatterView({
-  batter, pitcher, onCount, onHit, bases, onSteal, battingTeam, fieldingTeam, pitcherFatigue, onPitchThrown,
+  batter, pitcher, onCount, onHit, bases, outs, onSteal, battingTeam, fieldingTeam, pitcherFatigue, onPitchThrown,
 }: {
   batter: Batter; pitcher: Pitcher;
   onCount: (r: "ball" | "strike" | "foul" | "hbp") => void;
   onHit: (r: "single" | "double" | "triple" | "homer" | "out" | "fly" | "foul") => void;
   bases: [boolean, boolean, boolean];
+  outs: number;
   onSteal: () => void;
   battingTeam: Team;
   fieldingTeam: Team;
@@ -1452,6 +1490,8 @@ function BatterView({
           battingTeam={battingTeam}
           pitchOutcome={pitchOutcome}
           battedBall={battedBall}
+          bases={bases}
+          outs={outs}
           fieldingTeam={fieldingTeam}
         />
 
@@ -1504,7 +1544,7 @@ function BatterView({
 // ---------- Strike Zone ----------
 function StrikeZone({
   target, pitch, onSelect, showActual, pitcher, batter, swinging, hitLabel, battingTeam, pitchOutcome,
-  pov = "batter", battedBall, fieldingTeam,
+  pov = "batter", battedBall, fieldingTeam, bases, outs,
 }: {
   target: PitchLoc | null;
   pitch: PitchInFlight | null;
@@ -1520,6 +1560,8 @@ function StrikeZone({
   pov?: "batter" | "pitcher";
   battedBall?: { kind: BattedKind; id: number } | null;
   fieldingTeam?: Team;
+  bases?: [boolean, boolean, boolean];
+  outs?: number;
 }) {
   const [ballPos, setBallPos] = useState<{ left: number; top: number; scale: number; z: number } | null>(null);
   const animRef = useRef<number | undefined>(undefined);
@@ -1532,7 +1574,7 @@ function StrikeZone({
    * 투수 시점은 18.44m 뒤에서 보므로 원근 축소.
    */
   const G = pov === "pitcher"
-    ? { cx: 50, cy: 40, w: 17, h: 20 }
+    ? { cx: 50, cy: 40, w: 22, h: 26 }
     : { cx: 50, cy: 50, w: 27, h: 32 };
   const gx = (col: number) => G.cx - G.w / 2 + ((col + 0.5) / 5) * G.w;
   const gy = (row: number) => G.cy - G.h / 2 + ((row + 0.5) / 5) * G.h;
@@ -1840,6 +1882,10 @@ function StrikeZone({
           kind={battedBall.kind}
           color={(fieldingTeam ?? battingTeam).color === "#000000" ? "#334155" : (fieldingTeam ?? battingTeam).color}
           accent={(fieldingTeam ?? battingTeam).accent}
+          bases={bases}
+          outs={outs}
+          runnerColor={battingTeam.color === "#000000" ? "#334155" : battingTeam.color}
+          runnerAccent={battingTeam.accent}
         />
       )}
 
