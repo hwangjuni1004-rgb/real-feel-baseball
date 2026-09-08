@@ -1584,17 +1584,19 @@ function StrikeZone({
     setStage("wind");
     const anim = () => {
       const t = clamp((Date.now() - pitch.startedAt) / pitch.duration, 0, 1);
-      const armSide = pitcher?.throws === "L" ? -1 : 1;
+      // break.x 부호 규약: 우투 기준(+ = 1루측 = 타석 시점 화면 오른쪽), 좌투는 반전
+      const hand = pitcher?.throws === "L" ? -1 : 1;
       const slot = pitcher?.slot ?? "over";
-      // 릴리스 포인트(폼별 팔 높이 / 좌우투에 따른 좌우 위치)
       const sideOffset = slot === "over" ? 2 : slot === "side" ? 6.5 : 8.5;
       const relHeight = slot === "over" ? 20 : slot === "side" ? 27 : 34;
       // 투수 시점이면 좌우가 반대로 보인다
       const mirror = pov === "pitcher" ? -1 : 1;
-      const startX = pov === "pitcher" ? 50 + armSide * mirror * sideOffset * 1.6 : 50 + armSide * sideOffset;
+      // 타석 시점에서 우완의 팔은 3루측(화면 왼쪽)에서 나온다
+      const armSide = -hand * mirror;
+      const startX = pov === "pitcher" ? 50 + armSide * sideOffset * 1.6 : 50 + armSide * sideOffset;
       const startY = pov === "pitcher" ? 78 : relHeight;
       const endX = gx(pitch.actual.col), endY = gy(pitch.actual.row);
-      const midX = (startX + endX) / 2 + pitch.type.break.x * mirror * 3.0;
+      const midX = (startX + endX) / 2 + pitch.type.break.x * hand * mirror * 3.0;
       const midY = (startY + endY) / 2 - pitch.type.break.y * 1.8;
       const left = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * midX + t * t * endX;
       const top = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * endY;
@@ -1965,8 +1967,8 @@ function PitcherSvg({
   /** 등뒤(투수 시점) 렌더링 */
   back?: boolean;
 }) {
-  // 좌완은 좌우 반전. 등뒤 시점은 한 번 더 반전(뒤에서 보면 팔이 반대쪽)
-  const flip = (throws === "L" ? -1 : 1) * (back ? -1 : 1);
+  // 정면(타석 시점)에서 우완의 팔은 화면 왼쪽에 보인다. 등뒤 시점은 한 번 더 반전.
+  const flip = (throws === "L" ? 1 : -1) * (back ? -1 : 1);
 
   /**
    * 투구폼별 3단계 모션
