@@ -1265,8 +1265,8 @@ function simulateCpuBatter(
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     // 수비 연출이 끝난 뒤 아웃 처리
-    if (Math.random() < 0.5) { setMsg("플라이 아웃"); batted?.("fly"); setTimeout(() => onHit("fly"), 1900); return "플라이"; }
-    setMsg("땅볼 아웃"); batted?.("ground"); setTimeout(() => onHit("out"), 1900); return "땅볼";
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); batted?.("fly", "out"); setTimeout(() => onHit("fly"), 2100); return "플라이"; }
+    setMsg("땅볼 아웃"); batted?.("ground", "out"); setTimeout(() => onHit("out"), 2450); return "땅볼";
   }
   const doHit = (
     text: string,
@@ -1275,7 +1275,7 @@ function simulateCpuBatter(
     ms: number,
   ) => {
     setMsg(text);
-    batted?.(hitKind === "homer" ? "homer" : hitKind === "single" ? "ground" : "line");
+    batted?.(hitKind === "homer" ? "homer" : hitKind === "single" ? "ground" : "line", hitKind);
     if (showHit) {
       showHit(text.replace("!", "").replace("🎉", "").trim() || text, kind, ms + 100);
       setTimeout(() => onHit(hitKind), ms);
@@ -1283,10 +1283,11 @@ function simulateCpuBatter(
       setTimeout(() => onHit(hitKind), ms);
     }
   };
-  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 1800); return "안타"; }
-  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 1900); return "2루타"; }
-  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 2000); return "3루타"; }
-  doHit("🎉 홈런! 🎉", "homer", "homer", 2200);
+  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 2450); return "안타"; }
+  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 2300); return "2루타"; }
+  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 2300); return "3루타"; }
+  doHit("🎉 홈런! 🎉", "homer", "homer", 2650);
+
 
   return "홈런";
 }
