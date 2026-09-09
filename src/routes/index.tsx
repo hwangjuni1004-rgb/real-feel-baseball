@@ -980,13 +980,14 @@ function PitcherView({
   const [swingAnim, setSwingAnim] = useState(false);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
   const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
-  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; id: number } | null>(null);
+  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; outcome: BattedOutcome; id: number } | null>(null);
   const battedIdRef = useRef(0);
-  const showBatted = (kind: BattedKind) => {
+  const showBatted = (kind: BattedKind, outcome: BattedOutcome) => {
     battedIdRef.current += 1;
-    setBattedBall({ kind, id: battedIdRef.current });
-    setTimeout(() => setBattedBall(null), kind === "homer" ? 2300 : 2100);
+    setBattedBall({ kind, outcome, id: battedIdRef.current });
+    setTimeout(() => setBattedBall(null), outcome === "homer" ? 2800 : 2600);
   };
+
   // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
   const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
