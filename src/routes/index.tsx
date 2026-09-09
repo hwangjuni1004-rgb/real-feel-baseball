@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FieldPlay, type BattedKind } from "@/components/FieldPlay";
+import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
@@ -1220,7 +1220,7 @@ function simulateCpuBatter(
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; onBatted?: (k: BattedKind) => void },
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; onBatted?: (k: BattedKind, o: BattedOutcome) => void },
 ): string {
   const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
@@ -1562,7 +1562,7 @@ function StrikeZone({
   pitchOutcome?: { text: string; speed: number } | null;
   /** batter = 타석 시점, pitcher = 마운드(투수 등뒤) 시점 */
   pov?: "batter" | "pitcher";
-  battedBall?: { kind: BattedKind; id: number } | null;
+  battedBall?: { kind: BattedKind; outcome: BattedOutcome; id: number } | null;
   fieldingTeam?: Team;
   bases?: [boolean, boolean, boolean];
   outs?: number;
@@ -1886,6 +1886,7 @@ function StrikeZone({
         <FieldPlay
           key={battedBall.id}
           kind={battedBall.kind}
+          outcome={battedBall.outcome}
           color={(fieldingTeam ?? battingTeam).color === "#000000" ? "#334155" : (fieldingTeam ?? battingTeam).color}
           accent={(fieldingTeam ?? battingTeam).accent}
           bases={bases}
