@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export type BattedKind = "fly" | "ground" | "line" | "homer";
+/** 실제 경기 결과 — 연출의 아웃/세이프 판정은 반드시 이 값과 일치한다 */
+export type BattedOutcome = "out" | "single" | "double" | "triple" | "homer";
 
 type Pos = { x: number; y: number };
 
@@ -16,19 +18,23 @@ const POSITIONS: { key: string; label: string; pos: Pos; infield: boolean }[] = 
   { key: "RF", label: "우익", pos: { x: 83, y: 18 }, infield: false },
 ];
 
-/** 다이아몬드: 홈(아래) → 1루(우) → 2루(위) → 3루(좌) */
-const BASES = {
-  home: { x: 50, y: 88 },
-  first: { x: 74, y: 61 },
-  second: { x: 50, y: 34 },
-  third: { x: 26, y: 61 },
-} as const;
-type BaseKey = keyof typeof BASES;
-/** 주루 순서 (index 0=1루, 1=2루, 2=3루, 3=홈) */
-const BASE_ORDER: BaseKey[] = ["first", "second", "third", "home"];
+/** 다이아몬드: 홈(아래) → 1루(우) → 2루(위) → 3루(좌) → 홈 */
+const HOME: Pos = { x: 50, y: 88 };
+const BASE_POS: Pos[] = [
+  { x: 74, y: 61 }, // 0 = 1루
+  { x: 50, y: 34 }, // 1 = 2루
+  { x: 26, y: 61 }, // 2 = 3루
+  HOME, // 3 = 홈(득점)
+];
+const BASE_NAME = ["1루", "2루", "3루", "홈"];
+/** -1 = 타석(홈) */
+const basePos = (i: number): Pos => (i < 0 ? HOME : BASE_POS[Math.min(3, i)]!);
 
-const LEG_MS = 430; // 베이스 한 칸 주루 시간
-const THROW_MS = 560; // 송구가 베이스에 도착하는 시간 (아웃/세이프 판별용)
+const LEG_MS = 480; // 베이스 한 칸 주루 시간
+const THROW_MS = 620; // 송구 비행 시간
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 function PlayerSvg({ color, accent, run }: { color: string; accent: string; run: boolean }) {
   return (
@@ -48,9 +54,9 @@ function PlayerSvg({ color, accent, run }: { color: string; accent: string; run:
   );
 }
 
-function RunnerDot({ color, accent }: { color: string; accent: string }) {
+function RunnerDot({ color, accent, out }: { color: string; accent: string; out?: boolean }) {
   return (
-    <svg width="18" height="28" viewBox="0 0 22 34" style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.5))" }}>
+    <svg width="18" height="28" viewBox="0 0 22 34" style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.5))", opacity: out ? 0.5 : 1 }}>
       <circle cx="11" cy="5.5" r="4" fill="#e8b98a" />
       <path d="M7 4 A4 4 0 0 1 15 4 L15 5 L7 5 Z" fill={accent} />
       <rect x="6.5" y="9.5" width="9" height="11" rx="3" fill={color} />
@@ -61,17 +67,21 @@ function RunnerDot({ color, accent }: { color: string; accent: string }) {
   );
 }
 
-type Route = { to: BaseKey; cover: string; label: string; safe: boolean };
+type Leg = { t0: number; t1: number; from: number; to: number };
+type RunnerPlan = { legs: Leg[]; start: number; out: boolean };
+type ThrowPlan = { at: number; cover: string; label: string; safe: boolean; startT: number; arriveT: number };
 
 /**
  * 타구 궤적 + 9인 수비 개별 움직임 + 주자 진루 연출.
- * 송구는 베이스까지 THROW_MS 동안 날아가고, 도착 시점에 아웃/세이프 판정이 표시된다.
+ * 아웃/세이프 판정은 실제 경기 결과(outcome)와 일치하며,
+ * 주자 도착 시점과 송구 도착 시점도 그 판정과 어긋나지 않게 계산된다.
  */
 export function FieldPlay({
-  kind, color, accent, onDone, bases = [false, false, false], outs = 0,
+  kind, outcome = "out", color, accent, onDone, bases = [false, false, false], outs = 0,
   runnerColor, runnerAccent,
 }: {
   kind: BattedKind;
+  outcome?: BattedOutcome;
   color: string;
   accent: string;
   onDone?: () => void;
@@ -80,14 +90,13 @@ export function FieldPlay({
   runnerColor?: string;
   runnerAccent?: string;
 }) {
-  const [phase, setPhase] = useState(0); // 0 타구, 1 포구, 2 송구, 3 후속 송구, 4 판정 종료
-  const [legTick, setLegTick] = useState(0); // 주자가 지난 베이스 수
-  const [callShown, setCallShown] = useState(false);
   const rColor = runnerColor ?? "#f59e0b";
   const rAccent = runnerAccent ?? "#b45309";
   const doneRef = useRef(false);
+  const [t, setT] = useState(0);
 
   const plan = useMemo(() => {
+    const homer = outcome === "homer" || kind === "homer";
     const dir = Math.random();
     const laneX = dir < 0.34 ? 24 : dir < 0.67 ? 50 : 76;
     const pool =
@@ -96,96 +105,189 @@ export function FieldPlay({
         : POSITIONS.filter((p) => !p.infield);
     const sorted = [...pool].sort((a, b) => Math.abs(a.pos.x - laneX) - Math.abs(b.pos.x - laneX));
     const fielder = sorted[0]!;
-    const landing: Pos =
-      kind === "homer"
-        ? { x: laneX, y: -14 }
-        : kind === "ground"
-        ? { x: fielder.pos.x, y: fielder.pos.y + 4 }
-        : kind === "line"
-        ? { x: fielder.pos.x, y: fielder.pos.y + 8 }
-        : { x: fielder.pos.x, y: fielder.pos.y - 2 };
+    const landing: Pos = homer
+      ? { x: laneX, y: -16 }
+      : kind === "ground"
+      ? { x: fielder.pos.x, y: fielder.pos.y + 4 }
+      : kind === "line"
+      ? { x: fielder.pos.x, y: fielder.pos.y + 8 }
+      : { x: fielder.pos.x, y: fielder.pos.y - 2 };
 
-    const routes: Route[] = [];
-    const r = Math.random();
-    const safe = () => Math.random() < 0.3;
-    if (kind === "ground") {
-      if (bases[0] && bases[1] && outs < 2 && r < 0.32) {
-        routes.push({ to: "third", cover: "3B", label: `${fielder.label} → 3루 포스`, safe: safe() });
-        routes.push({ to: "first", cover: "1B", label: "3루 → 1루 병살", safe: safe() });
-      } else if (bases[0] && outs < 2 && r < 0.58) {
-        routes.push({ to: "second", cover: "2B", label: `${fielder.label} → 2루 포스`, safe: safe() });
-        routes.push({ to: "first", cover: "1B", label: "2루 → 1루 병살!", safe: safe() });
-      } else if (bases[0] && r < 0.74) {
-        routes.push({ to: "second", cover: "SS", label: `${fielder.label} → 2루 포스`, safe: safe() });
-      } else if (bases[2] && r < 0.85) {
-        routes.push({ to: "home", cover: "C", label: `${fielder.label} → 홈 승부`, safe: safe() });
-      } else {
-        routes.push({ to: "first", cover: "1B", label: `${fielder.label} → 1루 송구`, safe: safe() });
+    const flightMs = homer ? 1350 : kind === "line" ? 720 : kind === "ground" ? 900 : 1100;
+    const catchAt = flightMs + 80;
+
+    // 진루 칸수 (실제 결과와 동일)
+    const adv = outcome === "homer" ? 4 : outcome === "triple" ? 3 : outcome === "double" ? 2 : outcome === "single" ? 1 : 0;
+    const isHit = adv > 0;
+
+    // 송구 계획: 결과와 일치하는 단 하나의 판정
+    let throwPlan: ThrowPlan | null = null;
+    // 아웃 판정의 대상 주자 (타자주자 = -1)
+    let outRunnerStart = -1;
+    let outBase = 0;
+
+    if (!homer) {
+      if (!isHit && kind === "ground") {
+        // 땅볼 아웃 — 포스 상황이면 선행 주자를 잡을 수도 있다
+        const forceThird = bases[0] && bases[1] && outs < 2 && Math.random() < 0.25;
+        const forceSecond = bases[0] && outs < 2 && Math.random() < 0.35;
+        if (forceThird) { outRunnerStart = 1; outBase = 2; }
+        else if (forceSecond) { outRunnerStart = 0; outBase = 1; }
+        else { outRunnerStart = -1; outBase = 0; }
+        throwPlan = {
+          at: outBase,
+          cover: outBase === 0 ? "1B" : outBase === 1 ? "2B" : outBase === 2 ? "3B" : "C",
+          label: `${fielder.label} → ${BASE_NAME[outBase]} 아웃`,
+          safe: false,
+          startT: catchAt + 130,
+          arriveT: catchAt + 130 + THROW_MS,
+        };
+      } else if (!isHit) {
+        // 플라이/직선타 포구 아웃 — 송구 없음, 포구 순간 아웃
+        throwPlan = null;
+      } else if (adv < 4) {
+        // 안타 — 선행 주자를 노린 송구지만 전원 세이프
+        const leadDest = Math.max(
+          adv - 1,
+          ...bases.map((on, i) => (on ? Math.min(3, i + adv) : -1)),
+        );
+        const target = Math.min(2, Math.max(0, leadDest));
+        throwPlan = {
+          at: target,
+          cover: target === 0 ? "1B" : target === 1 ? "2B" : "3B",
+          label: `${fielder.label} → ${BASE_NAME[target]} 송구, 세이프`,
+          safe: true,
+          startT: catchAt + 130,
+          arriveT: catchAt + 130 + THROW_MS,
+        };
       }
-    } else if (kind === "fly" || kind === "line") {
-      if (bases[2] && r < 0.4) routes.push({ to: "home", cover: "C", label: `${fielder.label} 포구 → 홈 송구`, safe: safe() });
-      else if (bases[1] && r < 0.6) routes.push({ to: "third", cover: "3B", label: `${fielder.label} 포구 → 3루 송구`, safe: safe() });
-      else if (bases[0] && r < 0.75) routes.push({ to: "second", cover: "2B", label: `${fielder.label} 포구 → 2루 송구`, safe: safe() });
     }
-    return { fielder, landing, laneX, routes };
+
+    // 주자 계획
+    const runners: RunnerPlan[] = [];
+    const mkLegs = (start: number, to: number, arriveBy: number): Leg[] => {
+      const legs: Leg[] = [];
+      const count = to - start;
+      if (count <= 0) return legs;
+      const per = Math.min(LEG_MS, Math.max(180, arriveBy / count));
+      for (let i = 0; i < count; i++) {
+        legs.push({ t0: i * per, t1: (i + 1) * per, from: start + i, to: start + i + 1 });
+      }
+      return legs;
+    };
+
+    const throwArrive = throwPlan ? throwPlan.arriveT : catchAt;
+    // 세이프면 송구 도착보다 먼저, 아웃이면 송구 도착보다 늦게 베이스 도착
+    const safeArrive = Math.max(400, throwArrive - 200);
+    const outArrive = throwArrive + 260;
+
+    if (homer) {
+      runners.push({ legs: mkLegs(-1, 3, 4 * LEG_MS), start: -1, out: false });
+      bases.forEach((on, i) => { if (on) runners.push({ legs: mkLegs(i, 3, (3 - i) * LEG_MS), start: i, out: false }); });
+    } else if (isHit) {
+      const batterTo = adv - 1;
+      runners.push({
+        legs: mkLegs(-1, batterTo, throwPlan && throwPlan.at === batterTo ? safeArrive : (batterTo + 1) * LEG_MS),
+        start: -1, out: false,
+      });
+      bases.forEach((on, i) => {
+        if (!on) return;
+        const to = Math.min(3, i + adv);
+        runners.push({
+          legs: mkLegs(i, to, throwPlan && throwPlan.at === to ? safeArrive : (to - i) * LEG_MS),
+          start: i, out: false,
+        });
+      });
+    } else {
+      // 아웃 — 아웃되는 주자만 해당 베이스로, 나머지는 상황에 맞게
+      const batterOut = outRunnerStart === -1;
+      runners.push({
+        legs: mkLegs(-1, 0, batterOut ? outArrive : safeArrive),
+        start: -1,
+        out: batterOut && kind === "ground",
+      });
+      bases.forEach((on, i) => {
+        if (!on) return;
+        if (!batterOut && i === outRunnerStart) {
+          runners.push({ legs: mkLegs(i, outBase, outArrive), start: i, out: true });
+        } else if (kind === "ground" && i < outBase) {
+          runners.push({ legs: mkLegs(i, i + 1, safeArrive), start: i, out: false });
+        } else if (kind === "ground" && batterOut && i === 0) {
+          runners.push({ legs: mkLegs(0, 1, safeArrive), start: 0, out: false });
+        } else {
+          runners.push({ legs: [], start: i, out: false });
+        }
+      });
+    }
+
+    const callAt = throwPlan ? throwPlan.arriveT : catchAt + 120;
+    const endAt = homer ? 2600 : callAt + 700;
+    const callLabel = homer ? "홈런!" : throwPlan ? (throwPlan.safe ? "세이프!" : "아웃!") : "아웃!";
+    const callPos: Pos = homer ? HOME : throwPlan ? basePos(throwPlan.at) : landing;
+
+    return { fielder, landing, flightMs, catchAt, throwPlan, runners, callAt, endAt, callLabel, callPos, homer, isHit };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const homer = kind === "homer";
-  const flightMs = kind === "line" ? 700 : kind === "ground" ? 1000 : 1150;
-  const hasSecondThrow = plan.routes.length > 1;
 
   useEffect(() => {
-    const t0 = 40;
-    const catchAt = homer ? 1500 : flightMs + 80; // 포구 / 포구 후 송구 시작
-    const throw1End = catchAt + THROW_MS;
-    const throw2End = throw1End + THROW_MS;
-    const endAt = homer ? 2400 : (hasSecondThrow ? throw2End : throw1End) + 420;
-
-    const timers = [
-      setTimeout(() => setPhase(1), t0),
-      setTimeout(() => setPhase(2), catchAt),
-      setTimeout(() => setCallShown(true), throw1End),
-      ...(hasSecondThrow
-        ? [
-            setTimeout(() => { setPhase(3); setCallShown(false); }, throw1End + 120),
-            setTimeout(() => setCallShown(true), throw2End),
-          ]
-        : []),
-      setTimeout(() => { if (!doneRef.current) { doneRef.current = true; onDone?.(); } }, endAt),
-    ];
-    // 주루: 베이스 한 칸씩
-    const iv = setInterval(() => setLegTick((v) => v + 1), LEG_MS);
-    return () => { timers.forEach(clearTimeout); clearInterval(iv); };
+    let raf = 0;
+    const t0 = performance.now();
+    const loop = () => {
+      const el = performance.now() - t0;
+      setT(el);
+      if (el >= plan.endAt) {
+        if (!doneRef.current) { doneRef.current = true; onDone?.(); }
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const ballPos: Pos = phase === 0 ? BASES.home : plan.landing;
-  const route0 = plan.routes[0];
-  const route1 = plan.routes[1];
-  const activeRoute = phase >= 3 && route1 ? route1 : phase >= 2 && route0 ? route0 : null;
-  const finalBall = activeRoute ? BASES[activeRoute.to] : ballPos;
-  const ballMs = activeRoute ? THROW_MS : flightMs;
+  // ---- 공 위치 ----
+  const { landing, catchAt, throwPlan, flightMs } = plan;
+  let ball: Pos;
+  let lift = 0;
+  if (t < flightMs) {
+    const p = clamp01(t / flightMs);
+    ball = { x: lerp(HOME.x, landing.x, p), y: lerp(HOME.y, landing.y, p) };
+    const arc = Math.sin(p * Math.PI);
+    lift = (kind === "fly" ? 56 : plan.homer ? 78 : kind === "line" ? 16 : 3) * arc;
+  } else if (throwPlan && t >= throwPlan.startT) {
+    const p = clamp01((t - throwPlan.startT) / (throwPlan.arriveT - throwPlan.startT));
+    const to = basePos(throwPlan.at);
+    ball = { x: lerp(landing.x, to.x, p), y: lerp(landing.y, to.y, p) };
+    lift = 10 * Math.sin(p * Math.PI);
+  } else {
+    ball = landing;
+  }
 
-  const lift = phase === 0 ? 0 : activeRoute ? 8 : kind === "fly" ? 54 : homer ? 70 : kind === "line" ? 16 : 2;
-
-  /**
-   * 주자 진루: 타자주자는 홈(-1)에서 출발.
-   * 홈런이면 전원 홈까지, 아니면 타구 종류에 따라 진루 한계를 둔다.
-   */
-  const advance = homer ? 4 : kind === "line" ? 2 : kind === "fly" ? 1 : 1;
-  const runners: { from: number; to: number }[] = [];
-  runners.push({ from: -1, to: homer ? 3 : Math.min(3, advance - 1) });
-  bases.forEach((on, i) => {
-    if (on) runners.push({ from: i, to: Math.min(3, i + advance) });
-  });
-
-  const runnerPos = (from: number, to: number): Pos => {
-    const start = from; // -1 = 홈
-    const reached = Math.min(to, start + legTick);
-    if (reached < 0) return BASES.home;
-    return BASES[BASE_ORDER[reached]!];
+  const runnerPos = (r: RunnerPlan): { pos: Pos; running: boolean } => {
+    if (!r.legs.length) return { pos: basePos(r.start), running: false };
+    const last = r.legs[r.legs.length - 1]!;
+    if (t >= last.t1) {
+      // 아웃된 주자는 베이스 직전에서 멈춘다
+      if (r.out) {
+        const a = basePos(last.from), b = basePos(last.to);
+        return { pos: { x: lerp(a.x, b.x, 0.88), y: lerp(a.y, b.y, 0.88) }, running: false };
+      }
+      return { pos: basePos(last.to), running: false };
+    }
+    const leg = r.legs.find((l) => t >= l.t0 && t < l.t1) ?? r.legs[0]!;
+    const p = clamp01((t - leg.t0) / (leg.t1 - leg.t0));
+    const a = basePos(leg.from), b = basePos(leg.to);
+    return { pos: { x: lerp(a.x, b.x, p), y: lerp(a.y, b.y, p) }, running: true };
   };
+
+  const chaserAt: Pos = (() => {
+    if (plan.homer) return plan.fielder.pos;
+    const p = clamp01(t / catchAt);
+    return { x: lerp(plan.fielder.pos.x, landing.x, p), y: lerp(plan.fielder.pos.y, landing.y, p) };
+  })();
+
+  const showCall = t >= plan.callAt;
 
   return (
     <div className="absolute inset-0 z-[45] pointer-events-none">
@@ -194,13 +296,13 @@ export function FieldPlay({
         <path d="M50 90 L4 26 A64 64 0 0 1 96 26 Z" fill="rgba(6,78,59,0.82)" stroke="rgba(255,255,255,0.18)" />
         <path d="M50 88 L74 61 L50 34 L26 61 Z" fill="rgba(146,64,14,0.55)" stroke="rgba(255,255,255,0.35)" strokeWidth="0.6" />
         <circle cx="50" cy="58" r="6" fill="rgba(146,64,14,0.7)" />
-        {Object.values(BASES).map((b, i) => (
+        {[HOME, ...BASE_POS.slice(0, 3)].map((b, i) => (
           <rect key={i} x={b.x - 1.6} y={b.y - 1.6} width="3.2" height="3.2" fill="white" opacity="0.9" />
         ))}
-        {activeRoute && (
+        {throwPlan && t >= throwPlan.startT && (
           <line
-            x1={plan.landing.x} y1={plan.landing.y}
-            x2={BASES[activeRoute.to].x} y2={BASES[activeRoute.to].y}
+            x1={landing.x} y1={landing.y}
+            x2={basePos(throwPlan.at).x} y2={basePos(throwPlan.at).y}
             stroke="rgba(253,224,71,0.7)" strokeWidth="0.5" strokeDasharray="2 1.5"
           />
         )}
@@ -208,45 +310,39 @@ export function FieldPlay({
 
       {/* 수비수 9명 */}
       {POSITIONS.map((p) => {
-        const isChaser = p.key === plan.fielder.key && !homer;
-        const covering = activeRoute && p.key === activeRoute.cover && !isChaser;
-        const target = covering
-          ? BASES[activeRoute!.to]
-          : isChaser && phase >= 1
-          ? plan.landing
-          : p.pos;
+        const isChaser = p.key === plan.fielder.key && !plan.homer;
+        const covering = !!throwPlan && p.key === throwPlan.cover && !isChaser;
+        let target = p.pos;
+        if (isChaser) target = chaserAt;
+        else if (covering && throwPlan) {
+          const q = clamp01(t / throwPlan.arriveT);
+          const b = basePos(throwPlan.at);
+          target = { x: lerp(p.pos.x, b.x, q), y: lerp(p.pos.y, b.y, q) };
+        }
         return (
           <div
             key={p.key}
             className="absolute"
-            style={{
-              left: `${target.x}%`,
-              top: `${target.y}%`,
-              transform: "translate(-50%, -85%)",
-              transition: `left ${flightMs}ms ease-out, top ${flightMs}ms ease-out`,
-            }}
+            style={{ left: `${target.x}%`, top: `${target.y}%`, transform: "translate(-50%, -85%)" }}
           >
-            <PlayerSvg color={color} accent={accent} run={(isChaser || !!covering) && phase >= 1} />
+            <PlayerSvg color={color} accent={accent} run={(isChaser || covering) && t > 60} />
             <div className="text-[7px] text-center text-white/80 font-bold leading-none">{p.label}</div>
           </div>
         );
       })}
 
-      {/* 주자 진루 */}
-      {runners.map((r, i) => {
-        const pos = runnerPos(r.from, r.to);
+      {/* 주자 */}
+      {plan.runners.map((r, i) => {
+        const { pos, running } = runnerPos(r);
+        const isOut = r.out && showCall;
         return (
           <div
             key={`r${i}`}
             className="absolute"
-            style={{
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              transform: "translate(-50%, -85%)",
-              transition: `left ${LEG_MS}ms linear, top ${LEG_MS}ms linear`,
-            }}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: "translate(-50%, -85%)" }}
           >
-            <RunnerDot color={rColor} accent={rAccent} />
+            <RunnerDot color={rColor} accent={rAccent} out={isOut} />
+            {running && <div className="text-[7px] text-center text-yellow-200 font-bold leading-none">주루</div>}
           </div>
         );
       })}
@@ -254,47 +350,39 @@ export function FieldPlay({
       {/* 타구 그림자 */}
       <div
         className="absolute rounded-[50%] bg-black/45"
-        style={{
-          left: `${finalBall.x}%`, top: `${finalBall.y}%`,
-          width: "10px", height: "4px",
-          transform: "translate(-50%, -50%)",
-          transition: `left ${ballMs}ms linear, top ${ballMs}ms linear`,
-        }}
+        style={{ left: `${ball.x}%`, top: `${ball.y}%`, width: "10px", height: "4px", transform: "translate(-50%, -50%)" }}
       />
       {/* 타구 */}
       <div
         className="absolute w-3 h-3 rounded-full"
         style={{
-          left: `${finalBall.x}%`,
-          top: `calc(${finalBall.y}% - ${lift}px)`,
+          left: `${ball.x}%`,
+          top: `calc(${ball.y}% - ${lift}px)`,
           transform: "translate(-50%, -50%)",
           background: "radial-gradient(circle at 32% 28%, #fff, #e2e8f0 55%, #94a3b8 100%)",
           boxShadow: "0 0 10px rgba(255,255,255,0.7)",
-          transition: `left ${ballMs}ms ${activeRoute ? "linear" : kind === "ground" ? "linear" : "ease-out"}, top ${ballMs}ms ${
-            activeRoute ? "linear" : kind === "fly" || homer ? "cubic-bezier(0.2,-0.4,0.6,1)" : "linear"
-          }`,
         }}
       />
 
-      {/* 아웃/세이프 판정 */}
-      {activeRoute && callShown && (
+      {/* 판정 */}
+      {showCall && (
         <div
           className="absolute -translate-x-1/2 -translate-y-1/2 text-lg font-black px-2 py-0.5 rounded border-2"
           style={{
-            left: `${BASES[activeRoute.to].x}%`,
-            top: `${BASES[activeRoute.to].y - 9}%`,
-            color: activeRoute.safe ? "#4ade80" : "#f87171",
-            borderColor: activeRoute.safe ? "#4ade80" : "#f87171",
+            left: `${plan.callPos.x}%`,
+            top: `${plan.callPos.y - 9}%`,
+            color: plan.callLabel === "아웃!" ? "#f87171" : "#4ade80",
+            borderColor: plan.callLabel === "아웃!" ? "#f87171" : "#4ade80",
             background: "rgba(0,0,0,0.72)",
           }}
         >
-          {activeRoute.safe ? "세이프!" : "아웃!"}
+          {plan.callLabel}
         </div>
       )}
 
-      {!homer && phase >= 2 && (
+      {!plan.homer && t >= catchAt && (
         <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[11px] font-bold px-2 py-0.5 rounded bg-black/70 text-white border border-white/20">
-          {activeRoute ? activeRoute.label : `${plan.fielder.label} 포구`}
+          {throwPlan ? throwPlan.label : `${plan.fielder.label} 포구 아웃`}
         </div>
       )}
     </div>
