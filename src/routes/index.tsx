@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FieldPlay, type BattedKind } from "@/components/FieldPlay";
+import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
@@ -980,13 +980,14 @@ function PitcherView({
   const [swingAnim, setSwingAnim] = useState(false);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
   const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
-  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; id: number } | null>(null);
+  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; outcome: BattedOutcome; id: number } | null>(null);
   const battedIdRef = useRef(0);
-  const showBatted = (kind: BattedKind) => {
+  const showBatted = (kind: BattedKind, outcome: BattedOutcome) => {
     battedIdRef.current += 1;
-    setBattedBall({ kind, id: battedIdRef.current });
-    setTimeout(() => setBattedBall(null), kind === "homer" ? 2300 : 2100);
+    setBattedBall({ kind, outcome, id: battedIdRef.current });
+    setTimeout(() => setBattedBall(null), outcome === "homer" ? 2800 : 2600);
   };
+
   // 이번 타석 투구 히스토리 (CPU 타자가 다음 구종 예측에 사용)
   const pitchHistoryRef = useRef<string[]>([]);
   const showHit = (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => {
@@ -1219,7 +1220,7 @@ function simulateCpuBatter(
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; onBatted?: (k: BattedKind) => void },
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; onBatted?: (k: BattedKind, o: BattedOutcome) => void },
 ): string {
   const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
@@ -1264,8 +1265,8 @@ function simulateCpuBatter(
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
   if (qualityRoll < 0.58) {
     // 수비 연출이 끝난 뒤 아웃 처리
-    if (Math.random() < 0.5) { setMsg("플라이 아웃"); batted?.("fly"); setTimeout(() => onHit("fly"), 1900); return "플라이"; }
-    setMsg("땅볼 아웃"); batted?.("ground"); setTimeout(() => onHit("out"), 1900); return "땅볼";
+    if (Math.random() < 0.5) { setMsg("플라이 아웃"); batted?.("fly", "out"); setTimeout(() => onHit("fly"), 2100); return "플라이"; }
+    setMsg("땅볼 아웃"); batted?.("ground", "out"); setTimeout(() => onHit("out"), 2450); return "땅볼";
   }
   const doHit = (
     text: string,
@@ -1274,7 +1275,7 @@ function simulateCpuBatter(
     ms: number,
   ) => {
     setMsg(text);
-    batted?.(hitKind === "homer" ? "homer" : hitKind === "single" ? "ground" : "line");
+    batted?.(hitKind === "homer" ? "homer" : hitKind === "single" ? "ground" : "line", hitKind);
     if (showHit) {
       showHit(text.replace("!", "").replace("🎉", "").trim() || text, kind, ms + 100);
       setTimeout(() => onHit(hitKind), ms);
@@ -1282,10 +1283,11 @@ function simulateCpuBatter(
       setTimeout(() => onHit(hitKind), ms);
     }
   };
-  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 1800); return "안타"; }
-  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 1900); return "2루타"; }
-  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 2000); return "3루타"; }
-  doHit("🎉 홈런! 🎉", "homer", "homer", 2200);
+  if (qualityRoll < 0.80) { doHit("안타!", "single", "single", 2450); return "안타"; }
+  if (qualityRoll < 0.92) { doHit("2루타!", "double", "double", 2300); return "2루타"; }
+  if (qualityRoll < 0.97) { doHit("3루타!", "triple", "triple", 2300); return "3루타"; }
+  doHit("🎉 홈런! 🎉", "homer", "homer", 2650);
+
 
   return "홈런";
 }
@@ -1317,13 +1319,14 @@ function BatterView({
   const [hitLabel, setHitLabel] = useState<{ text: string; kind: "single" | "double" | "triple" | "homer" } | null>(null);
   const [lastPitch, setLastPitch] = useState<{ name: string; speed: number; result: string } | null>(null);
   const [pitchOutcome, setPitchOutcome] = useState<{ text: string; speed: number } | null>(null);
-  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; id: number } | null>(null);
+  const [battedBall, setBattedBall] = useState<{ kind: BattedKind; outcome: BattedOutcome; id: number } | null>(null);
   const battedIdRef = useRef(0);
-  const showBatted = (kind: BattedKind) => {
+  const showBatted = (kind: BattedKind, outcome: BattedOutcome) => {
     battedIdRef.current += 1;
-    setBattedBall({ kind, id: battedIdRef.current });
-    setTimeout(() => setBattedBall(null), kind === "homer" ? 2300 : 2100);
+    setBattedBall({ kind, outcome, id: battedIdRef.current });
+    setTimeout(() => setBattedBall(null), outcome === "homer" ? 2800 : 2600);
   };
+
   const showOutcome = (text: string, speed: number) => {
     setPitchOutcome({ text, speed });
     setTimeout(() => setPitchOutcome(null), 1400);
@@ -1445,14 +1448,15 @@ function BatterView({
     if (q < 0.62) {
       const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
       // 수비 연출(포구/송구)이 끝난 뒤 아웃 처리 → 애니메이션이 끊기지 않음
-      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); showBatted("fly"); markPending(); setTimeout(() => onHit("fly"), 1900); }
-      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); showBatted("ground"); markPending(); setTimeout(() => onHit("out"), 1900); }
+      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); showBatted("fly", "out"); markPending(); setTimeout(() => onHit("fly"), 2100); }
+      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); showBatted("ground", "out"); markPending(); setTimeout(() => onHit("out"), 2450); }
       return;
     }
-    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 1400); showBatted("ground"); markPending(); setTimeout(() => onHit("single"), 1800); return; }
-    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1500); showBatted("line"); markPending(); setTimeout(() => onHit("double"), 1900); return; }
-    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1600); showBatted("line"); markPending(); setTimeout(() => onHit("triple"), 2000); return; }
-    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 1900); showBatted("homer"); markPending(); setTimeout(() => onHit("homer"), 2200);
+    if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 1600); showBatted("ground", "single"); markPending(); setTimeout(() => onHit("single"), 2450); return; }
+    if (q < 0.95) { setPhaseMsg("2루타!"); record("2루타"); showHit("2루타", "double", 1700); showBatted("line", "double"); markPending(); setTimeout(() => onHit("double"), 2300); return; }
+    if (q < 1.05) { setPhaseMsg("3루타!"); record("3루타"); showHit("3루타", "triple", 1800); showBatted("line", "triple"); markPending(); setTimeout(() => onHit("triple"), 2300); return; }
+    setPhaseMsg("🎉 홈런!"); record("홈런"); showHit("🎉 홈런! 🎉", "homer", 2100); showBatted("homer", "homer"); markPending(); setTimeout(() => onHit("homer"), 2650);
+
 
   };
 
@@ -1558,7 +1562,7 @@ function StrikeZone({
   pitchOutcome?: { text: string; speed: number } | null;
   /** batter = 타석 시점, pitcher = 마운드(투수 등뒤) 시점 */
   pov?: "batter" | "pitcher";
-  battedBall?: { kind: BattedKind; id: number } | null;
+  battedBall?: { kind: BattedKind; outcome: BattedOutcome; id: number } | null;
   fieldingTeam?: Team;
   bases?: [boolean, boolean, boolean];
   outs?: number;
@@ -1882,6 +1886,7 @@ function StrikeZone({
         <FieldPlay
           key={battedBall.id}
           kind={battedBall.kind}
+          outcome={battedBall.outcome}
           color={(fieldingTeam ?? battingTeam).color === "#000000" ? "#334155" : (fieldingTeam ?? battingTeam).color}
           accent={(fieldingTeam ?? battingTeam).accent}
           bases={bases}
