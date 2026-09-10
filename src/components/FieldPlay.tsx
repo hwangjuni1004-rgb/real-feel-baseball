@@ -139,8 +139,8 @@ export function FieldPlay({
           cover: outBase === 0 ? "1B" : outBase === 1 ? "2B" : outBase === 2 ? "3B" : "C",
           label: `${fielder.label} → ${BASE_NAME[outBase]} 아웃`,
           safe: false,
-          startT: catchAt + 130,
-          arriveT: catchAt + 130 + THROW_MS,
+          startT: catchAt + 300,
+          arriveT: catchAt + 300 + THROW_MS + 160,
         };
       } else if (!isHit) {
         // 플라이/직선타 포구 아웃 — 송구 없음, 포구 순간 아웃
