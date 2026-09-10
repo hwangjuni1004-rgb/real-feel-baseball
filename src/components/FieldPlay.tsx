@@ -139,8 +139,8 @@ export function FieldPlay({
           cover: outBase === 0 ? "1B" : outBase === 1 ? "2B" : outBase === 2 ? "3B" : "C",
           label: `${fielder.label} → ${BASE_NAME[outBase]} 아웃`,
           safe: false,
-          startT: catchAt + 130,
-          arriveT: catchAt + 130 + THROW_MS,
+          startT: catchAt + 300,
+          arriveT: catchAt + 300 + THROW_MS + 160,
         };
       } else if (!isHit) {
         // 플라이/직선타 포구 아웃 — 송구 없음, 포구 순간 아웃
@@ -169,7 +169,8 @@ export function FieldPlay({
       const legs: Leg[] = [];
       const count = to - start;
       if (count <= 0) return legs;
-      const per = Math.min(LEG_MS, Math.max(180, arriveBy / count));
+      // 도착 시점을 정확히 맞추기 위해 구간을 균등 분배한다
+      const per = Math.max(240, arriveBy / count);
       for (let i = 0; i < count; i++) {
         legs.push({ t0: i * per, t1: (i + 1) * per, from: start + i, to: start + i + 1 });
       }
@@ -178,8 +179,8 @@ export function FieldPlay({
 
     const throwArrive = throwPlan ? throwPlan.arriveT : catchAt;
     // 세이프면 송구 도착보다 먼저, 아웃이면 송구 도착보다 늦게 베이스 도착
-    const safeArrive = Math.max(400, throwArrive - 200);
-    const outArrive = throwArrive + 260;
+    const safeArrive = Math.max(500, throwArrive - 240);
+    const outArrive = throwArrive + 300;
 
     if (homer) {
       runners.push({ legs: mkLegs(-1, 3, 4 * LEG_MS), start: -1, out: false });
