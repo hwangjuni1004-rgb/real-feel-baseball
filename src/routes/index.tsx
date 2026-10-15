@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LeagueMode } from "@/components/LeagueMode";
 import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
@@ -48,25 +49,35 @@ const speedOf = (b: Batter): number => SPEED_MAP[b.name] ?? b.speed ?? (5 + Math
 
 // ---------- Component ----------
 function Game() {
+  const [mode, setMode] = useState<"menu" | "single" | "league">("menu");
+  if (mode === "league") return <LeagueMode onExit={() => setMode("menu")} renderMatch={(p) => <Match {...p} />} />;
+  if (mode === "single") return <SingleGame onExit={() => setMode("menu")} />;
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white flex items-center justify-center px-4">
+      <div className="max-w-md w-full text-center">
+        <div className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs tracking-widest mb-3">KBO 2026</div>
+        <h1 className="text-4xl font-black tracking-tight mb-8">홈런 더비 나인</h1>
+        <div className="grid gap-3">
+          <button onClick={() => setMode("single")} className="rounded-xl p-5 bg-white/10 border border-white/15 hover:bg-white/15 text-left">
+            <div className="text-lg font-black">⚾ 일반 모드</div>
+            <div className="text-xs text-white/60 mt-1">단판 경기 — 팀과 선발을 고르고 바로 플레이</div>
+          </button>
+          <button onClick={() => setMode("league")} className="rounded-xl p-5 bg-yellow-400 text-black hover:bg-yellow-300 text-left">
+            <div className="text-lg font-black">🏆 리그 모드</div>
+            <div className="text-xs opacity-70 mt-1">정규시즌 → 와일드카드 → 준PO → PO → 한국시리즈</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SingleGame({ onExit }: { onExit: () => void }) {
   const [phase, setPhase] = useState<Phase>("team-select");
   const [userTeam, setUserTeam] = useState<Team | null>(null);
   const [cpuTeam, setCpuTeam] = useState<Team | null>(null);
   const [innings, setInnings] = useState<number>(3);
   const [starterIdx, setStarterIdx] = useState<number>(0);
-
-  if (phase === "team-select") {
-    return (
-      <TeamSelect
-        onStart={(u, c, inn, starter) => {
-          setUserTeam(u);
-          setCpuTeam(c);
-          setInnings(inn);
-          setStarterIdx(starter);
-          setPhase("playing");
-        }}
-      />
-    );
-  }
 
   if (phase === "playing" && userTeam && cpuTeam) {
     return (
@@ -79,7 +90,20 @@ function Game() {
       />
     );
   }
-  return null;
+  return (
+    <div className="relative">
+      <button onClick={onExit} className="absolute top-3 left-3 z-10 text-xs px-3 py-1.5 rounded bg-white/10 text-white hover:bg-white/20">← 메뉴</button>
+      <TeamSelect
+        onStart={(u, c, inn, starter) => {
+          setUserTeam(u);
+          setCpuTeam(c);
+          setInnings(inn);
+          setStarterIdx(starter);
+          setPhase("playing");
+        }}
+      />
+    </div>
+  );
 }
 
 // ---------- Team Select ----------
@@ -214,7 +238,7 @@ export function formatIP(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: () => void }) {
+export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: (scoreUser: number, scoreCpu: number) => void }) {
   const INNINGS = innings;
   const safeStarter = clamp(starterIdx, 0, userTeam.rotation.length - 1);
   const [state, setState] = useState<GameState>({
@@ -689,7 +713,7 @@ function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam:
         scoreUser={state.scoreUser}
         scoreCpu={state.scoreCpu}
         decisions={buildDecisions()}
-        onFinish={onFinish}
+        onFinish={() => onFinish(state.scoreUser, state.scoreCpu)}
       />
     );
   }
