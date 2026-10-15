@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LeagueMode } from "@/components/LeagueMode";
 import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
@@ -49,7 +50,7 @@ const speedOf = (b: Batter): number => SPEED_MAP[b.name] ?? b.speed ?? (5 + Math
 // ---------- Component ----------
 function Game() {
   const [mode, setMode] = useState<"menu" | "single" | "league">("menu");
-  if (mode === "league") return <LeagueMode onExit={() => setMode("menu")} />;
+  if (mode === "league") return <LeagueMode onExit={() => setMode("menu")} renderMatch={(p) => <Match {...p} />} />;
   if (mode === "single") return <SingleGame onExit={() => setMode("menu")} />;
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-950 text-white flex items-center justify-center px-4">
