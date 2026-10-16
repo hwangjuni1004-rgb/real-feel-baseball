@@ -10,6 +10,7 @@ export interface Batter {
   power: number; // 1-10
   contact: number; // 1-10
   speed?: number; // 1-10 (도루/주루 능력)
+  defense?: number; // 1-10 수비력 (없으면 자동 산출)
   number?: number; // 등번호
   nickname?: string; // 별명
   legend?: boolean; // 레전드/영구결번급 여부
@@ -521,3 +522,37 @@ for (const t of TEAMS) {
   });
 }
 
+
+// ============= 수비 스탯 & 시장가치 =============
+/** 포지션별 기본 수비 난이도 보정 (유격·포수·중견이 높은 수비력 요구) */
+const POS_DEF_BASE: Record<Position, number> = {
+  P: 5, C: 7, "1B": 5, "2B": 7, "3B": 6, SS: 8, LF: 5, CF: 7, RF: 6, DH: 3,
+};
+/** 수비 스탯(1-10). 명시값이 없으면 포지션·스피드·이름 해시로 결정적으로 산출 */
+export function batterDefense(b: Batter): number {
+  if (b.defense) return b.defense;
+  let h = 0;
+  for (const c of b.name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const spd = b.speed ?? 5;
+  const v = POS_DEF_BASE[b.pos] + (spd - 5) * 0.3 + ((h % 5) - 2) + (b.legend ? 1 : 0);
+  return Math.max(1, Math.min(10, Math.round(v)));
+}
+/** 수비 시 실효 수비력: 제포지션 아니면 -2 (DH는 수비 없음) */
+export function fieldingAt(b: Batter, pos: Position, natural: Position = b.pos): number {
+  const d = batterDefense(b);
+  return pos === natural || pos === "DH" ? d : Math.max(1, d - 2);
+}
+/** 타자 시장가치(만 달러): 타격(정확·파워) + 수비 + 스피드 */
+export function batterValue(b: Batter): number {
+  const bat = b.contact * 1.2 + b.power * 1.3;
+  const score = bat + batterDefense(b) * 0.7 + (b.speed ?? 5) * 0.3; // 최대 ~35
+  return Math.round(Math.pow(score / 10, 2.6) * 40 * (b.legend ? 1.5 : 1));
+}
+/** 투수 시장가치(만 달러): 제구 + 구속 + 구위(구종 수·무브먼트) */
+export function pitcherValue(p: Pitcher): number {
+  const velo = Math.max(0, (p.velo - 135) / 3); // 135→0, 162→9
+  const stuff = p.pitches.reduce((s, x) => s + Math.hypot(x.break.x, x.break.y), 0) / Math.max(1, p.pitches.length);
+  const score = p.control * 1.3 + velo * 1.4 + Math.min(10, stuff * 3) * 0.8 + p.pitches.length * 0.6;
+  return Math.round(Math.pow(score / 10, 2.6) * 40 * (p.legend ? 1.5 : 1));
+}
+export const fmtMoney = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}억$` : `${v.toLocaleString()}만$`);
