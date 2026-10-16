@@ -78,8 +78,9 @@ type ThrowPlan = { at: number; cover: string; label: string; safe: boolean; star
  */
 export function FieldPlay({
   kind, outcome = "out", color, accent, onDone, bases = [false, false, false], outs = 0,
-  runnerColor, runnerAccent,
+  runnerColor, runnerAccent, names,
 }: {
+  names?: Partial<Record<string, string>>;
   kind: BattedKind;
   outcome?: BattedOutcome;
   color: string;
@@ -327,7 +328,7 @@ export function FieldPlay({
             style={{ left: `${target.x}%`, top: `${target.y}%`, transform: "translate(-50%, -85%)" }}
           >
             <PlayerSvg color={color} accent={accent} run={(isChaser || covering) && t > 60} />
-            <div className="text-[7px] text-center text-white/80 font-bold leading-none">{p.label}</div>
+            <div className="text-[7px] text-center text-white/80 font-bold leading-none whitespace-nowrap">{names?.[p.key] ?? p.label}</div>
           </div>
         );
       })}
@@ -383,7 +384,7 @@ export function FieldPlay({
 
       {!plan.homer && t >= catchAt && (
         <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[11px] font-bold px-2 py-0.5 rounded bg-black/70 text-white border border-white/20">
-          {throwPlan ? throwPlan.label : `${plan.fielder.label} 포구 아웃`}
+          {throwPlan ? throwPlan.label : `${names?.[plan.fielder.key] ?? plan.fielder.label} 포구 아웃`}
         </div>
       )}
     </div>

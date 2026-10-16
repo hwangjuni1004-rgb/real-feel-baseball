@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { TEAMS, POS_LABEL, type Team, type Batter, type Position } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, batterValue, fieldingAt, fmtMoney, type Team, type Batter, type Position } from "@/lib/kbo-data";
 import {
   createLeague, simUntilUserGame, nextUserGame, recordUserGame, regularDone, simRestOfSeason,
   startPostseason, currentSeries, userInSeries, playSeriesGame, homeForGame, nextSeriesGameNo,
@@ -299,7 +299,7 @@ function LineupEditor({ team, slots, onChange }: { team: Team; slots: LineupSlot
               <select value={s.pos} onChange={(e) => setSlot(i, { pos: e.target.value as Position })} className={`bg-black/40 rounded px-1 py-1 text-sm ${off ? "text-rose-300" : "text-emerald-300"}`}>
                 {FIELD.map((p) => <option key={p} value={p}>{POS_LABEL[p]}</option>)}
               </select>
-              <div className="text-[10px] w-14 text-right text-white/60">정{b.contact} 파{b.power}{off && <div className="text-rose-300">-1</div>}</div>
+              <div className="text-[10px] w-20 text-right text-white/60">정{b.contact} 파{b.power} 수{fieldingAt(b, s.pos)}<div className="text-yellow-200/80">{fmtMoney(batterValue(b))}</div>{off && <div className="text-rose-300">타격-1 수비-2</div>}</div>
             </div>
           );
         })}

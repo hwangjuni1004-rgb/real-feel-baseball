@@ -1917,6 +1917,7 @@ function StrikeZone({
           outs={outs}
           runnerColor={battingTeam.color === "#000000" ? "#334155" : battingTeam.color}
           runnerAccent={battingTeam.accent}
+          names={Object.fromEntries((fieldingTeam?.lineup ?? []).filter((b) => b.pos !== "DH").map((b) => [b.pos, b.name]))}
         />
       )}
 
