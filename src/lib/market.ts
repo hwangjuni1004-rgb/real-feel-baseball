@@ -51,12 +51,14 @@ const MLB_PITCHERS: Pitcher[] = [
     pitches: [P("포심 패스트볼", 151, 157, 0, -0.2), P("커브", 120, 130, -1.3, 3.0), P("슬라이더", 136, 143, -1.8, 0.9)] },
 ];
 
+let userTeamId = "";
 const uid = () => Math.random().toString(36).slice(2, 9);
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]!;
 export const listingName = (l: Listing) => (l.batter ?? l.pitcher)!.name;
 export const listingTeam = (from: string) => (from === "MLB" ? "MLB" : TEAMS.find((t) => t.id === from)!.short);
 
-export function createMarket(): MarketState {
+export function createMarket(user: string): MarketState {
+  userTeamId = user;
   const money: Record<string, number> = {};
   const rosters: Record<string, Roster> = {};
   TEAMS.forEach((t) => {
@@ -107,7 +109,6 @@ function refill(m: MarketState, want: number): MarketState {
   }
   return { ...m, listings };
 }
-let userTeamId = "";
 
 /** 유저 오퍼 등록/수정 (금액 제한 없음) */
 export function placeBid(m: MarketState, user: string, id: string, amount: number): MarketState {

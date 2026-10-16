@@ -5,13 +5,15 @@ import {
   startPostseason, currentSeries, userInSeries, playSeriesGame, homeForGame, nextSeriesGameNo,
   sortedStandings, gamesBehind, winPct, SERIES_LABEL, type LeagueState,
 } from "@/lib/league";
+import { createMarket, marketTick, teamWithRoster, type MarketState } from "@/lib/market";
+import { MarketTab, TeamsTab } from "./MarketTab";
 
 const KEY = "kbo-league-v1";
 const FIELD: Position[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 const teamById = (id: string) => TEAMS.find((t) => t.id === id)!;
 
 export type LineupSlot = { name: string; pos: Position };
-type Saved = { league: LeagueState; lineup: LineupSlot[] };
+type Saved = { league: LeagueState; lineup: LineupSlot[]; market?: MarketState };
 
 export type MatchRender = (p: {
   userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number;
@@ -30,6 +32,23 @@ export function applyLineup(team: Team, slots: LineupSlot[]): Team {
   return { ...team, lineup };
 }
 
+/** 이적으로 빠진 선수를 라인업에서 제거하고 남은 선수로 채움 */
+function repairLineup(team: Team, slots: LineupSlot[]): LineupSlot[] {
+  const names = new Set(team.lineup.map((b) => b.name));
+  const kept = slots.filter((s) => names.has(s.name));
+  if (kept.length === 9) return slots;
+  const used = new Set(kept.map((s) => s.name));
+  const free = FIELD.filter((p) => !kept.some((s) => s.pos === p));
+  for (const b of team.lineup) {
+    if (kept.length >= 9 || used.has(b.name)) continue;
+    const pos = free.includes(b.pos) ? b.pos : free[0]!;
+    free.splice(free.indexOf(pos), 1);
+    kept.push({ name: b.name, pos });
+    used.add(b.name);
+  }
+  return kept;
+}
+
 function defaultLineup(team: Team): LineupSlot[] {
   return team.lineup.slice(0, 9).map((b) => ({ name: b.name, pos: b.pos }));
 }
@@ -38,7 +57,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const [saved, setSaved] = useState<Saved | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [tab, setTab] = useState<"home" | "lineup" | "standings" | "news">("home");
+  const [tab, setTab] = useState<"home" | "lineup" | "market" | "teams" | "standings" | "news">("home");
 
   useEffect(() => {
     try { const s = localStorage.getItem(KEY); if (s) setSaved(JSON.parse(s)); } catch { /* ignore */ }
@@ -53,13 +72,16 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   if (!loaded) return null;
   if (!saved) return <LeagueSetup onExit={onExit} onCreate={(t, inn) => {
     const L = simUntilUserGame(createLeague(t.id, inn, 0, 1));
-    setSaved({ league: L, lineup: defaultLineup(t) });
+    setSaved({ league: L, lineup: defaultLineup(t), market: createMarket(t.id) });
   }} />;
 
   const L = saved.league;
-  const user = teamById(L.userTeamId);
-  const userTeam = applyLineup(user, saved.lineup);
-  const update = (league: LeagueState) => setSaved({ ...saved, league });
+  const market = saved.market ?? createMarket(L.userTeamId);
+  const user = teamWithRoster(teamById(L.userTeamId), market);
+  const lineup = repairLineup(user, saved.lineup);
+  const userTeam = applyLineup(user, lineup);
+  const update = (league: LeagueState) => setSaved({ ...saved, lineup, league, market: marketTick(market, L.userTeamId) });
+  const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
 
   // 다음 상대
   let oppId: string | null = null;
@@ -76,7 +98,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
 
   if (playing && oppId) {
     return <>{renderMatch({
-      userTeam, cpuTeam: teamById(oppId), innings: L.innings, starterIdx: L.starterIdx,
+      userTeam, cpuTeam: teamWithRoster(teamById(oppId), market), innings: L.innings, starterIdx: L.starterIdx,
       onFinish: (u, c) => {
         setPlaying(false);
         if (L.stage === "regular") {
@@ -130,11 +152,12 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
           <div className="w-3 h-8 rounded" style={{ background: user.color }} />
           <div className="flex-1">
             <div className="font-black">{user.name}</div>
+            <div className="text-[11px] text-yellow-200">자금 {(market.money[L.userTeamId] ?? 0).toLocaleString()}만$</div>
             <div className="text-[11px] text-white/60">{my.w}승 {my.l}패 {my.d}무 · {myRank}위 · {L.stage === "regular" ? "정규시즌" : L.stage === "post" ? "포스트시즌" : "시즌 종료"}</div>
           </div>
         </div>
         <div className="max-w-4xl mx-auto flex gap-1 mt-3 overflow-x-auto">
-          {([["home", "경기"], ["lineup", "라인업"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
+          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["teams", "타팀 로스터"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded text-sm font-bold ${tab === k ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{v}</button>
           ))}
         </div>
@@ -198,8 +221,10 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
         )}
 
         {tab === "lineup" && (
-          <LineupEditor team={user} slots={saved.lineup} onChange={(lineup) => setSaved({ ...saved, lineup })} />
+          <LineupEditor team={user} slots={lineup} onChange={(lineup) => setSaved({ ...saved, lineup })} />
         )}
+        {tab === "market" && <MarketTab market={market} user={L.userTeamId} onChange={setMarket} />}
+        {tab === "teams" && <TeamsTab market={market} user={L.userTeamId} onChange={setMarket} />}
 
         {tab === "standings" && (
           <table className="w-full text-sm">
@@ -220,8 +245,8 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
 
         {tab === "news" && (
           <div className="space-y-1 text-sm">
-            {L.news.length === 0 && <div className="text-white/50">아직 소식이 없습니다.</div>}
-            {L.news.map((n, i) => <div key={i} className="px-3 py-2 rounded bg-white/5">{n}</div>)}
+            {market.news.length + L.news.length === 0 && <div className="text-white/50">아직 소식이 없습니다.</div>}
+            {[...market.news, ...L.news].map((n, i) => <div key={i} className="px-3 py-2 rounded bg-white/5">{n}</div>)}
           </div>
         )}
       </div>
