@@ -142,3 +142,16 @@
     color: var(--color-foreground);
   }
 }
+
+.league-staff {
+  --foreground: oklch(0.97 0.01 150);
+  --muted-foreground: oklch(0.73 0.03 150);
+  --card: oklch(0.24 0.025 150);
+  --primary: oklch(0.86 0.16 90);
+  --primary-foreground: oklch(0.2 0.02 150);
+  --secondary: oklch(0.31 0.025 150);
+  --secondary-foreground: oklch(0.97 0.01 150);
+  --border: oklch(0.97 0.01 150 / 15%);
+  --accent: oklch(0.34 0.025 150);
+  --accent-foreground: oklch(0.97 0.01 150);
+}

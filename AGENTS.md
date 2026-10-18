@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep trade evaluation and atomic roster swaps in the browser-safe trade domain module, separate from the league screen, so acceptance rules can be tested without UI rendering.
+- Keep staff contracts and attribute modifiers in the browser-safe staff domain; persist staff IDs in the existing league save and apply modifiers only to match copies so base rosters and player values stay unchanged.
