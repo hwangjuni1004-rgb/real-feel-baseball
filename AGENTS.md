@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep trade evaluation and atomic roster swaps in the browser-safe trade domain module, separate from the league screen, so acceptance rules can be tested without UI rendering.

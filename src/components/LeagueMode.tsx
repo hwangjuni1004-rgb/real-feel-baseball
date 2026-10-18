@@ -7,6 +7,8 @@ import {
 } from "@/lib/league";
 import { createMarket, marketTick, teamWithRoster, type MarketState } from "@/lib/market";
 import { MarketTab, TeamsTab } from "./MarketTab";
+import { TradeTab } from "./TradeTab";
+import { Button } from "./ui/button";
 
 const KEY = "kbo-league-v1";
 const FIELD: Position[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
@@ -57,7 +59,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const [saved, setSaved] = useState<Saved | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [tab, setTab] = useState<"home" | "lineup" | "market" | "teams" | "standings" | "news">("home");
+  const [tab, setTab] = useState<"home" | "lineup" | "market" | "trade" | "teams" | "standings" | "news">("home");
 
   useEffect(() => {
     try { const s = localStorage.getItem(KEY); if (s) setSaved(JSON.parse(s)); } catch { /* ignore */ }
@@ -157,8 +159,8 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
           </div>
         </div>
         <div className="max-w-4xl mx-auto flex gap-1 mt-3 overflow-x-auto">
-          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["teams", "타팀 로스터"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
-            <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded text-sm font-bold ${tab === k ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{v}</button>
+          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["trade", "트레이드"], ["teams", "타팀 로스터"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
+            <Button key={k} variant="ghost" aria-pressed={tab === k} onClick={() => setTab(k)} className={`shrink-0 px-3 py-1.5 rounded text-sm font-bold ${tab === k ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{v}</Button>
           ))}
         </div>
       </div>
@@ -224,6 +226,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
           <LineupEditor team={user} slots={lineup} onChange={(lineup) => setSaved({ ...saved, lineup })} />
         )}
         {tab === "market" && <MarketTab market={market} user={L.userTeamId} onChange={setMarket} />}
+        {tab === "trade" && <TradeTab market={market} user={L.userTeamId} onChange={setMarket} />}
         {tab === "teams" && <TeamsTab market={market} user={L.userTeamId} onChange={setMarket} />}
 
         {tab === "standings" && (
