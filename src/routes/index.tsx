@@ -9,6 +9,10 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "KBO 홈런더비 - 실시간 야구 게임" },
       { name: "description", content: "KBO 실제 팀·선수 기반의 투타 대결 야구 게임. 구종과 코스, 타이밍을 골라 승부하세요." },
+      { property: "og:title", content: "홈런 더비 나인 - KBO 경기와 리그 경영" },
+      { property: "og:description", content: "KBO 구단과 선수로 투타 대결, 라인업 편성, 이적시장과 트레이드를 즐기세요." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Game,
@@ -64,7 +68,7 @@ function Game() {
           </button>
           <button onClick={() => setMode("league")} className="rounded-xl p-5 bg-yellow-400 text-black hover:bg-yellow-300 text-left">
             <div className="text-lg font-black">🏆 리그 모드</div>
-            <div className="text-xs opacity-70 mt-1">정규시즌 → 와일드카드 → 준PO → PO → 한국시리즈</div>
+            <div className="text-xs opacity-70 mt-1">정규시즌 → 와일드카드 → 준플레이오프 → 플레이오프 → 한국시리즈</div>
           </button>
         </div>
       </div>
