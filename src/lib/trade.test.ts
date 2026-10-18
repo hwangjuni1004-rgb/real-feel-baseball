@@ -1,3 +1,4 @@
+/// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import { TEAMS } from "./kbo-data";
 import { type MarketState } from "./market";
