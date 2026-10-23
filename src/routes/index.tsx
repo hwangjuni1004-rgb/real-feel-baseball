@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LeagueMode } from "@/components/LeagueMode";
 import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
-import { TEAMS, POS_LABEL, SLOT_LABEL, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, SLOT_LABEL, teamDefense, defenseOutBoost, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1097,7 +1097,7 @@ function PitcherView({
     setTimeout(() => {
       const resultMsg = simulateCpuBatter(
         actual, batter, type, onCount, onHit, setPhaseMsg, showHit, triggerSwing,
-        { pitcher, predictedMatch: matched, speed, fatigue: pitcherFatigue, onBatted: showBatted },
+        { pitcher, predictedMatch: matched, speed, fatigue: pitcherFatigue, defense: teamDefense(fieldingTeam), onBatted: showBatted },
       );
       setLastPitch({ name: type.name, speed, result: resultMsg });
       setPitchOutcome({ text: resultMsg, speed });
@@ -1248,7 +1248,7 @@ function simulateCpuBatter(
   setMsg: (s: string) => void,
   showHit?: (text: string, kind: "single" | "double" | "triple" | "homer", ms: number) => void,
   triggerSwing?: () => void,
-  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; onBatted?: (k: BattedKind, o: BattedOutcome) => void },
+  opts?: { pitcher: Pitcher; predictedMatch: boolean; speed: number; fatigue?: number; defense?: number; onBatted?: (k: BattedKind, o: BattedOutcome) => void },
 ): string {
   const pitchTypeName = pitchType.name;
   const strike = inStrikeZone(actual);
@@ -1291,10 +1291,13 @@ function simulateCpuBatter(
   let qualityRoll = Math.random() + (power - 5) * 0.03 + (strike ? 0.1 : -0.15) + typeMod * 0.5 + predBonus * 0.5 + platoon * 0.5 + cornerPenalty + fatigueBoost * 1.2 + sigMod * 1.2;
   const batted = opts?.onBatted;
   if (qualityRoll < 0.35) { setMsg("파울"); onCount("foul"); return "파울"; }
-  if (qualityRoll < 0.58) {
+  // 수비력이 높으면 안타성 타구를 잡아내 아웃으로 전환 (수비 코치 보정 포함)
+  const outLine = 0.58 + defenseOutBoost(opts?.defense ?? 5.5);
+  if (qualityRoll < outLine) {
+    const gem = qualityRoll >= 0.58; // 평균 수비였다면 안타였을 타구
     // 수비 연출이 끝난 뒤 아웃 처리
-    if (Math.random() < 0.5) { setMsg("플라이 아웃"); batted?.("fly", "out"); setTimeout(() => onHit("fly"), 2100); return "플라이"; }
-    setMsg("땅볼 아웃"); batted?.("ground", "out"); setTimeout(() => onHit("out"), 2450); return "땅볼";
+    if (Math.random() < 0.5) { setMsg(gem ? "호수비! 플라이 아웃" : "플라이 아웃"); batted?.("fly", "out"); setTimeout(() => onHit("fly"), 2100); return gem ? "호수비 플라이" : "플라이"; }
+    setMsg(gem ? "호수비! 땅볼 아웃" : "땅볼 아웃"); batted?.("ground", "out"); setTimeout(() => onHit("out"), 2450); return gem ? "호수비 땅볼" : "땅볼";
   }
   const doHit = (
     text: string,
@@ -1473,11 +1476,14 @@ function BatterView({
     q += typeMod * 1.3;
 
     if (q < 0.45) { setPhaseMsg("파울"); record("파울"); onCount("foul"); return; }
-    if (q < 0.62) {
+    // 상대 수비력이 높으면 안타성 타구를 잡아내 아웃으로 전환 (수비 코치 보정 포함)
+    const outLine = 0.62 + defenseOutBoost(teamDefense(fieldingTeam));
+    if (q < outLine) {
+      const gem = q >= 0.62; // 평균 수비였다면 안타였을 타구
       const flyBias = timing === "perfect" ? 0.7 : timing === "good" ? 0.55 : 0.5;
       // 수비 연출(포구/송구)이 끝난 뒤 아웃 처리 → 애니메이션이 끊기지 않음
-      if (Math.random() < flyBias) { setPhaseMsg("플라이 아웃"); record("플라이 아웃"); showBatted("fly", "out"); markPending(); setTimeout(() => onHit("fly"), 2100); }
-      else { setPhaseMsg("땅볼 아웃"); record("땅볼 아웃"); showBatted("ground", "out"); markPending(); setTimeout(() => onHit("out"), 2450); }
+      if (Math.random() < flyBias) { setPhaseMsg(gem ? "호수비! 플라이 아웃" : "플라이 아웃"); record(gem ? "호수비 플라이 아웃" : "플라이 아웃"); showBatted("fly", "out"); markPending(); setTimeout(() => onHit("fly"), 2100); }
+      else { setPhaseMsg(gem ? "호수비! 땅볼 아웃" : "땅볼 아웃"); record(gem ? "호수비 땅볼 아웃" : "땅볼 아웃"); showBatted("ground", "out"); markPending(); setTimeout(() => onHit("out"), 2450); }
       return;
     }
     if (q < 0.82) { setPhaseMsg("안타!"); record("안타"); showHit("안타", "single", 1600); showBatted("ground", "single"); markPending(); setTimeout(() => onHit("single"), 2450); return; }
