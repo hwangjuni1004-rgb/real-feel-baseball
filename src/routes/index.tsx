@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LeagueMode } from "@/components/LeagueMode";
 import { FieldPlay, type BattedKind, type BattedOutcome } from "@/components/FieldPlay";
 import { TEAMS, POS_LABEL, SLOT_LABEL, teamDefense, defenseOutBoost, type Team, type Batter, type Pitcher, type PitchType, type ArmSlot, type PitcherFace } from "@/lib/kbo-data";
+import { emptyGameLine, type GameStatLine, type BatterStat } from "@/lib/stats";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -242,7 +243,7 @@ export function formatIP(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: (scoreUser: number, scoreCpu: number) => void }) {
+export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number; onFinish: (scoreUser: number, scoreCpu: number, stats?: { user: GameStatLine; cpu: GameStatLine }) => void }) {
   const INNINGS = innings;
   const safeStarter = clamp(starterIdx, 0, userTeam.rotation.length - 1);
   const [state, setState] = useState<GameState>({
@@ -288,6 +289,15 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
     { side: "cpu", idx: 0, leadAtEnter: 0, leadAtExit: null },
   ]);
   const prevLeadRef = useRef(0);
+
+  // ---- 선수별 경기 기록 수집 (시즌 누적용) ----
+  const gameStatsRef = useRef<{ user: GameStatLine; cpu: GameStatLine }>({ user: emptyGameLine(), cpu: emptyGameLine() });
+  const recBat = (name: string, delta: Partial<BatterStat>) => {
+    const line = userBats ? gameStatsRef.current.user : gameStatsRef.current.cpu;
+    const next: Record<string, number> = { ...(line.batting[name] ?? {}) };
+    for (const [k, v] of Object.entries(delta)) next[k] = (next[k] ?? 0) + (v ?? 0);
+    line.batting[name] = next as Partial<BatterStat>;
+  };
 
   // 리드가 바뀌는 순간의 마운드 투수 = 승리/패전 투수 후보
   useEffect(() => {
@@ -350,6 +360,36 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
       lose: nameOf(loserSide, loseIdx),
       save,
       holds: Array.from(new Set(holds)),
+      winRef: { side: winnerSide, idx: winIdx } as { side: Side; idx: number },
+      loseRef: { side: loserSide, idx: loseIdx } as { side: Side; idx: number },
+      saveRef: save && finisher ? ({ side: winnerSide, idx: finisher.idx } as { side: Side; idx: number }) : null,
+      holdRefs: winnerStints
+        .slice(1, Math.max(1, winnerStints.length - 1))
+        .filter((x) => x.idx !== winIdx && x.leadAtEnter * sign > 0 && (x.leadAtExit ?? finalLead) * sign > 0)
+        .map((x) => ({ side: winnerSide, idx: x.idx })),
+    };
+  };
+
+  // 경기 종료 시 선수별 기록 라인 생성 (타격은 수집분, 투수는 이닝·실점·승패 결합)
+  const buildGameStats = (): { user: GameStatLine; cpu: GameStatLine } => {
+    const d = buildDecisions();
+    const mkPitching = (side: Side, team: Team, outsArr: number[], runsArr: number[]) => {
+      const out: GameStatLine["pitching"] = {};
+      team.rotation.forEach((p, i) => {
+        const o = outsArr[i] ?? 0;
+        const er = runsArr[i] ?? 0;
+        const w = d?.winRef.side === side && d.winRef.idx === i ? 1 : 0;
+        const l = d?.loseRef.side === side && d.loseRef.idx === i ? 1 : 0;
+        const sv = d?.saveRef?.side === side && d.saveRef.idx === i ? 1 : 0;
+        const hld = d?.holdRefs.some((r) => r.side === side && r.idx === i) ? 1 : 0;
+        if (!o && !er && !w && !l && !sv && !hld) return;
+        out[p.name] = { outs: o, er, w, l, sv, hld };
+      });
+      return out;
+    };
+    return {
+      user: { batting: gameStatsRef.current.user.batting, pitching: mkPitching("user", userTeam, state.userPitOuts, state.userPitRuns) },
+      cpu: { batting: gameStatsRef.current.cpu.batting, pitching: mkPitching("cpu", cpuTeam, state.cpuPitOuts, state.cpuPitRuns) },
     };
   };
 
@@ -557,6 +597,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
       if (result === "ball") {
         balls++;
         if (balls >= 4) {
+          recBat(batter.name, { pa: 1, bb: 1 });
           log = [`🚶 ${batter.name} 볼넷 출루`, ...log];
           const walkResult = pushRunner(bases);
           bases = walkResult.bases;
@@ -572,6 +613,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         }
       } else if (result === "hbp") {
         // 몸에 맞는 공: 볼넷과 동일한 포스 진루 규칙 적용
+        recBat(batter.name, { pa: 1 });
         log = [`🤕 ${batter.name} 몸에 맞는 공! 출루`, ...log];
         const hbpResult = pushRunner(bases);
         bases = hbpResult.bases;
@@ -588,6 +630,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         strikes++;
         if (strikes >= 3) {
           outs++;
+          recBat(batter.name, { pa: 1, ab: 1, so: 1 });
           log = [`❌ ${batter.name} 삼진 아웃 (${outs}아웃)`, ...log];
           if (userBats) userBatIdx++;
           else cpuBatIdx++;
@@ -598,6 +641,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         // 파울팁 삼진: 2스트라이크 상황에서 10% 확률로 파울팁 → 삼진
         if (strikes >= 2 && Math.random() < 0.1) {
           outs++;
+          recBat(batter.name, { pa: 1, ab: 1, so: 1 });
           log = [`⚡ ${batter.name} 파울팁 삼진! (${outs}아웃)`, ...log];
           if (userBats) userBatIdx++;
           else cpuBatIdx++;
@@ -649,15 +693,18 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
       if (kind === "fly") {
         // 희생플라이: 3루 주자 있고 2아웃 미만
         if (bases[2] && outs < 2) {
+          recBat(batter.name, { pa: 1, rbi: 1 }); // 희생플라이는 타수 제외
           scoreFn(1);
           bases[2] = false;
           outs++;
           log = [`🕊️ ${batter.name} 희생플라이! (+1점, ${outs}아웃)`, ...log];
         } else {
+          recBat(batter.name, { pa: 1, ab: 1 });
           outs++;
           log = [`🪁 ${batter.name} 플라이 아웃 (${outs}아웃)`, ...log];
         }
       } else if (kind === "out") {
+        recBat(batter.name, { pa: 1, ab: 1 });
         // 1루 주자 있고 2아웃 미만이면 30% 병살
         if (bases[0] && outs < 2 && Math.random() < 0.3) {
           outs += 2;
@@ -684,6 +731,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         if (adv >= 4) runs++;
         else bases[adv - 1] = true;
         scoreFn(runs);
+        recBat(batter.name, { pa: 1, ab: 1, h: 1, hr: kind === "homer" ? 1 : 0, rbi: runs });
         const label = kind === "single" ? "안타" : kind === "double" ? "2루타" : kind === "triple" ? "3루타" : "🎉 홈런!";
         log = [`💥 ${batter.name} ${label}${runs > 0 ? ` (+${runs}점)` : ""}`, ...log];
       }
@@ -717,7 +765,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         scoreUser={state.scoreUser}
         scoreCpu={state.scoreCpu}
         decisions={buildDecisions()}
-        onFinish={() => onFinish(state.scoreUser, state.scoreCpu)}
+        onFinish={() => onFinish(state.scoreUser, state.scoreCpu, buildGameStats())}
       />
     );
   }
