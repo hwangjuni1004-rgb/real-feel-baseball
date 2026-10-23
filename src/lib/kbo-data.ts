@@ -542,6 +542,15 @@ export function fieldingAt(b: Batter, pos: Position, natural: Position = b.pos):
   const d = batterDefense(b);
   return pos === natural || pos === "DH" ? d : Math.max(1, d - 2);
 }
+/** 팀 평균 수비력 (라인업 평균, 수비 코치 보정이 선수 defense에 반영된 값 사용) */
+export function teamDefense(team: Team): number {
+  if (!team.lineup.length) return 5.5;
+  return team.lineup.reduce((s, b) => s + fieldingAt(b, b.pos), 0) / team.lineup.length;
+}
+/** 수비력의 타구 판정 보정: 평균(5.5) 대비 1당 안타성 타구의 2%p를 아웃으로 전환 (최대 +0.09, 최소 -0.05) */
+export function defenseOutBoost(defense: number): number {
+  return Math.max(-0.05, Math.min(0.09, (defense - 5.5) * 0.02));
+}
 /** 타자 시장가치(만 달러): 타격(정확·파워) + 수비 + 스피드 */
 export function batterValue(b: Batter): number {
   const bat = b.contact * 1.2 + b.power * 1.3;
