@@ -143,7 +143,8 @@
   }
 }
 
-.league-staff {
+.league-staff,
+.league-stats {
   --foreground: oklch(0.97 0.01 150);
   --muted-foreground: oklch(0.73 0.03 150);
   --card: oklch(0.24 0.025 150);

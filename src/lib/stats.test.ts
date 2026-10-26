@@ -1,8 +1,25 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
-import { batAvg, createSeasonStats, emptyGameLine, era, mergeGameStats } from "./stats";
+import { batAvg, createSeasonStats, emptyGameLine, era, mergeGameStats, mergeMatchStats, formatIP } from "./stats";
 
 describe("시즌 성적 누적", () => {
+  test("기록이 없는 기존 저장에도 양 팀의 성적을 함께 누적한다", () => {
+    const s = mergeMatchStats(undefined, "LG", "SS", {
+      user: { batting: { 김현수: { pa: 4, ab: 3, h: 2, hr: 1, rbi: 3 } }, pitching: { 임찬규: { outs: 9, er: 1, w: 1 } } },
+      cpu: { batting: { 구자욱: { pa: 3, ab: 3, h: 1, rbi: 1 } }, pitching: { 원태인: { outs: 6, er: 3, l: 1 } } },
+    });
+    expect(s.LG?.batters.김현수?.rbi).toBe(3);
+    expect(s.LG?.pitchers.임찬규?.w).toBe(1);
+    expect(s.SS?.batters.구자욱?.h).toBe(1);
+    expect(s.SS?.pitchers.원태인?.l).toBe(1);
+    expect(mergeMatchStats(s, "LG", "SS")).toBe(s);
+    expect(mergeMatchStats(s, "LG", "SS", { user: emptyGameLine(), cpu: emptyGameLine() })).toEqual(s);
+  });
+  test("이닝은 아웃 3개마다 1이닝으로 표시한다", () => {
+    expect(formatIP(7)).toBe("2.1");
+    expect(formatIP(8)).toBe("2.2");
+    expect(formatIP(9)).toBe("3.0");
+  });
   test("두 경기의 타격 기록이 누적된다", () => {
     let s = createSeasonStats();
     s = mergeGameStats(s, "LG", { ...emptyGameLine(), batting: { 김현수: { pa: 4, ab: 4, h: 2, rbi: 1 } } });

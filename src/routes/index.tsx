@@ -444,7 +444,7 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
       return { ...s, userPitOuts: uo, cpuPitOuts: co, userPitRuns: ur, cpuPitRuns: cr };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.inning, state.half, state.outs, state.scoreUser, state.scoreCpu]);
+  }, [state.inning, state.half, state.outs, state.scoreUser, state.scoreCpu, state.userPitIdx, state.cpuPitIdx]);
 
   // user is home team (bat bottom). half=top => cpu bats, user pitches. half=bottom => user bats, cpu pitches.
   const userBats = state.half === "bottom";
@@ -597,9 +597,9 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
       if (result === "ball") {
         balls++;
         if (balls >= 4) {
-          recBat(batter.name, { pa: 1, bb: 1 });
           log = [`🚶 ${batter.name} 볼넷 출루`, ...log];
           const walkResult = pushRunner(bases);
+          recBat(batter.name, { pa: 1, bb: 1, rbi: walkResult.scored });
           bases = walkResult.bases;
           if (walkResult.scored) {
             if (userBats) scoreUser++;
@@ -613,9 +613,9 @@ export function Match({ userTeam, cpuTeam, innings, starterIdx, onFinish }: { us
         }
       } else if (result === "hbp") {
         // 몸에 맞는 공: 볼넷과 동일한 포스 진루 규칙 적용
-        recBat(batter.name, { pa: 1 });
         log = [`🤕 ${batter.name} 몸에 맞는 공! 출루`, ...log];
         const hbpResult = pushRunner(bases);
+        recBat(batter.name, { pa: 1, rbi: hbpResult.scored });
         bases = hbpResult.bases;
         if (hbpResult.scored) {
           if (userBats) scoreUser++;
