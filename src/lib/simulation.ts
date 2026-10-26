@@ -41,6 +41,7 @@ export function simulateMatch(home: Team, away: Team, innings: number, options: 
         const hit = Math.max(0.16, Math.min(0.38, 0.26 + (batter.contact - 5) * 0.018 - (pitcher.velo - 145) * 0.003 - (fielding - 5) * 0.006));
         const roll = random();
         let runs = 0;
+        let homeRun = false;
         if (++appearances <= 100 && roll < walk) {
           bs.bb = (bs.bb ?? 0) + 1;
           if (bases[0]) {
@@ -55,7 +56,7 @@ export function simulateMatch(home: Team, away: Team, innings: number, options: 
             const quality = random();
             const hrChance = Math.max(0.025, 0.05 + batter.power * 0.013 - (pitcher.velo - 145) * 0.0015);
             const distance = quality < hrChance ? 4 : quality < hrChance + 0.02 ? 3 : quality < hrChance + 0.22 ? 2 : 1;
-            if (distance === 4) { bs.hr = (bs.hr ?? 0) + 1; runs = 1; }
+            if (distance === 4) { homeRun = true; bs.hr = (bs.hr ?? 0) + 1; runs = 1; }
             const next = [false, false, false];
             for (let base = 0; base < 3; base++) {
               if (!bases[base]) continue;
@@ -70,7 +71,7 @@ export function simulateMatch(home: Team, away: Team, innings: number, options: 
           }
         }
         // 끝내기 안타는 필요한 주자만 득점 (홈런은 전원 득점).
-        if (side === 1 && inning >= scheduled && runs > 0 && !(bs.hr && roll < walk + hit)) {
+        if (side === 1 && inning >= scheduled && runs > 0 && !homeRun) {
           runs = Math.min(runs, Math.max(0, (scores[0] ?? 0) - (scores[1] ?? 0) + 1));
         }
         scores[side] = (scores[side] ?? 0) + runs;

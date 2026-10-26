@@ -1,4 +1,11 @@
 import { TEAMS, type Team } from "./kbo-data";
+import { simulateMatch, type SimulatedGame } from "./simulation";
+
+export type SimulationContext = {
+  team?: (id: string) => Team;
+  starter?: (id: string) => number;
+  onGame?: (home: string, away: string, game: SimulatedGame) => void;
+};
 
 // ================= 실제 KBO 방식 리그전 =================
 // 정규시즌: 10개 구단 라운드로빈 (한 라운드 = 각 팀 1경기, 총 9라운드 = 팀당 9경기)
@@ -200,7 +207,7 @@ export function nextUserGame(L: LeagueState): ScheduleGame | null {
 }
 
 /** 유저 경기 전까지의 다른 팀 경기를 모두 자동 진행 */
-export function simUntilUserGame(L: LeagueState): LeagueState {
+export function simUntilUserGame(L: LeagueState, context?: SimulationContext): LeagueState {
   const st = structuredClone(L.standings);
   const schedule = L.schedule.map((g) => ({ ...g }));
   let cursor = L.cursor;
@@ -208,7 +215,7 @@ export function simUntilUserGame(L: LeagueState): LeagueState {
   while (cursor < schedule.length) {
     const g = schedule[cursor]!;
     if (g.home === L.userTeamId || g.away === L.userTeamId) break;
-    const r = simGame(g.home, g.away, L.innings);
+    const r = simGame(g.home, g.away, L.innings, context);
     g.hs = r.hs; g.as = r.as; g.done = true;
     applyResult(st, g);
     news.push(
@@ -244,12 +251,12 @@ export function regularDone(L: LeagueState) {
 }
 
 /** 정규시즌 잔여 경기 전부 자동 진행 */
-export function simRestOfSeason(L: LeagueState): LeagueState {
+export function simRestOfSeason(L: LeagueState, context?: SimulationContext): LeagueState {
   const st = structuredClone(L.standings);
   const schedule = L.schedule.map((g) => ({ ...g }));
   for (const g of schedule) {
     if (g.done) continue;
-    const r = simGame(g.home, g.away, L.innings);
+    const r = simGame(g.home, g.away, L.innings, context);
     g.hs = r.hs; g.as = r.as; g.done = true;
     applyResult(st, g);
   }
@@ -312,7 +319,7 @@ function advanceBracket(L: LeagueState, finished: Series): LeagueState {
 }
 
 /** 포스트시즌 1경기 결과 반영 (userScore 미지정 시 자동 시뮬) */
-export function playSeriesGame(L: LeagueState, result?: { userScore: number; oppScore: number }): LeagueState {
+export function playSeriesGame(L: LeagueState, result?: { userScore: number; oppScore: number }, context?: SimulationContext): LeagueState {
   const cur = currentSeries(L);
   if (!cur) return L;
   const gameNo = nextSeriesGameNo(cur);
@@ -326,7 +333,7 @@ export function playSeriesGame(L: LeagueState, result?: { userScore: number; opp
     as = userHome ? result.oppScore : result.userScore;
     if (hs === as) hs += 1; // 포스트시즌 무승부 없음 (연장 끝내기 처리)
   } else {
-    const r = simGameDecided(home, away, L.innings);
+    const r = simGameDecided(home, away, L.innings, context);
     hs = r.hs; as = r.as;
   }
   const winnerId = hs > as ? home : away;
