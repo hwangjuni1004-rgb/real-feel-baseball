@@ -8,6 +8,7 @@ export type GameStatLine = {
   batting: Record<string, Partial<BatterStat>>;
   pitching: Record<string, Partial<PitcherStat>>;
 };
+export type MatchStats = { user: GameStatLine; cpu: GameStatLine };
 
 export const emptyBatterStat = (): BatterStat => ({ pa: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0 });
 export const emptyPitcherStat = (): PitcherStat => ({ outs: 0, er: 0, w: 0, l: 0, hld: 0, sv: 0 });
@@ -37,6 +38,12 @@ export function mergeGameStats(season: SeasonStats, teamId: string, line: GameSt
 }
 
 export const batAvg = (s: BatterStat) => (s.ab > 0 ? s.h / s.ab : 0);
+/** 기존 저장에는 기록이 없어도 두 팀의 경기 기록을 함께 누적한다. */
+export function mergeMatchStats(season: SeasonStats | undefined, userId: string, cpuId: string, lines?: MatchStats): SeasonStats {
+  const current = season ?? createSeasonStats();
+  if (!lines) return current;
+  return mergeGameStats(mergeGameStats(current, userId, lines.user), cpuId, lines.cpu);
+}
 /** 방어율: 9이닝(27아웃) 기준 */
 export const era = (s: PitcherStat) => (s.outs > 0 ? (s.er * 27) / s.outs : 0);
 export const fmtAvg = (v: number) => v.toFixed(3).replace(/^0/, "");

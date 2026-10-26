@@ -11,17 +11,19 @@ import { TradeTab } from "./TradeTab";
 import { Button } from "./ui/button";
 import { StaffTab } from "./StaffTab";
 import { createStaff, applyStaff, type StaffState } from "@/lib/staff";
+import { StatsTab } from "./StatsTab";
+import { mergeMatchStats, type MatchStats, type SeasonStats } from "@/lib/stats";
 
 const KEY = "kbo-league-v1";
 const FIELD: Position[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 const teamById = (id: string) => TEAMS.find((t) => t.id === id)!;
 
 export type LineupSlot = { name: string; pos: Position };
-type Saved = { league: LeagueState; lineup: LineupSlot[]; market?: MarketState; staff?: StaffState };
+type Saved = { league: LeagueState; lineup: LineupSlot[]; market?: MarketState; staff?: StaffState; stats?: SeasonStats };
 
 export type MatchRender = (p: {
   userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number;
-  onFinish: (u: number, c: number) => void;
+  onFinish: (u: number, c: number, stats?: MatchStats) => void;
 }) => ReactNode;
 
 /** 제포지션이 아니면 정확·파워 -1 (지명타자는 누구나 무보정) */
@@ -61,7 +63,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const [saved, setSaved] = useState<Saved | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [tab, setTab] = useState<"home" | "lineup" | "market" | "trade" | "staff" | "teams" | "standings" | "news">("home");
+  const [tab, setTab] = useState<"home" | "lineup" | "market" | "trade" | "staff" | "teams" | "stats" | "standings" | "news">("home");
 
   useEffect(() => {
     try { const s = localStorage.getItem(KEY); if (s) setSaved(JSON.parse(s)); } catch { /* ignore */ }
@@ -76,7 +78,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   if (!loaded) return null;
   if (!saved) return <LeagueSetup onExit={onExit} onCreate={(t, inn) => {
     const L = simUntilUserGame(createLeague(t.id, inn, 0, 1));
-    setSaved({ league: L, lineup: defaultLineup(t), market: createMarket(t.id), staff: createStaff() });
+    setSaved({ league: L, lineup: defaultLineup(t), market: createMarket(t.id), staff: createStaff(), stats: {} });
   }} />;
 
   const L = saved.league;
@@ -85,7 +87,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const user = teamWithRoster(teamById(L.userTeamId), market);
   const lineup = repairLineup(user, saved.lineup);
   const userTeam = applyStaff(applyLineup(user, lineup), staff);
-  const update = (league: LeagueState) => setSaved({ ...saved, lineup, league, market: marketTick(market, L.userTeamId) });
+  const update = (league: LeagueState, stats: SeasonStats | undefined = saved.stats) => setSaved({ ...saved, lineup, league, stats, market: marketTick(market, L.userTeamId) });
   const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
 
   // 다음 상대
@@ -104,15 +106,16 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   if (playing && oppId) {
     return <>{renderMatch({
       userTeam, cpuTeam: applyStaff(teamWithRoster(teamById(oppId), market), staff), innings: L.innings, starterIdx: L.starterIdx,
-      onFinish: (u, c) => {
+      onFinish: (u, c, gameStats) => {
+        const stats = mergeMatchStats(saved.stats, L.userTeamId, oppId, gameStats);
         setPlaying(false);
         if (L.stage === "regular") {
           let n = simUntilUserGame(recordUserGame(L, u, c));
           if (regularDone(n)) n = startPostseason(n);
           const nextStarter = (L.starterIdx + 1) % Math.max(1, Math.min(5, user.rotation.length));
-          update({ ...n, starterIdx: nextStarter });
+          update({ ...n, starterIdx: nextStarter }, stats);
         } else {
-          update(playSeriesGame(L, { userScore: u, oppScore: c }));
+          update(playSeriesGame(L, { userScore: u, oppScore: c }), stats);
         }
       },
     })}</>;
@@ -162,7 +165,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
           </div>
         </div>
         <div className="max-w-4xl mx-auto flex gap-1 mt-3 overflow-x-auto">
-          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["trade", "트레이드"], ["staff", "코치진"], ["teams", "타팀 로스터"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
+          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["trade", "트레이드"], ["staff", "코치진"], ["teams", "타팀 로스터"], ["stats", "기록"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
             <Button key={k} variant="ghost" aria-pressed={tab === k} onClick={() => setTab(k)} className={`shrink-0 px-3 py-1.5 rounded text-sm font-bold ${tab === k ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{v}</Button>
           ))}
         </div>
@@ -232,6 +235,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
         {tab === "trade" && <TradeTab market={market} user={L.userTeamId} onChange={setMarket} />}
         {tab === "staff" && <StaffTab market={market} staff={staff} user={L.userTeamId} onChange={(market, staff) => setSaved({ ...saved, lineup, market, staff })} />}
         {tab === "teams" && <TeamsTab market={market} user={L.userTeamId} onChange={setMarket} />}
+        {tab === "stats" && <StatsTab stats={saved.stats ?? {}} market={market} user={L.userTeamId} />}
 
         {tab === "standings" && (
           <table className="w-full text-sm">
