@@ -1,4 +1,5 @@
 import { batterValue, pitcherValue, type Batter, type Pitcher, type Position } from "./kbo-data";
+import { TEAMS } from "./kbo-data";
 import type { Standing } from "./league";
 import type { MarketState } from "./market";
 
@@ -69,7 +70,7 @@ export function applyDraft(m: MarketState, d: DraftState): { market: MarketState
     const r = rosters[k.team];
     if (!r) return;
     if (p.batter) r.lineup.push(p.batter); else if (p.pitcher) r.rotation.push(p.pitcher);
-    news.push(`🎓 드래프트 ${k.round}라운드 ${(i % d.order.length) + 1}순위: ${k.team} — ${(p.batter ?? p.pitcher)!.name}`);
+    news.push(`🎓 드래프트 ${k.round}라운드 ${(i % d.order.length) + 1}순위: ${TEAMS.find((t) => t.id === k.team)?.short ?? k.team} — ${(p.batter ?? p.pitcher)!.name}`);
   });
   return { market: { ...m, rosters, news: [...news.reverse(), ...m.news].slice(0, 60) }, news };
 }
