@@ -89,29 +89,20 @@ function poisson(mean: number) {
   return k - 1;
 }
 
-/** 팀 전력 + 홈 어드밴티지 기반 스코어 시뮬레이션 */
-export function simGame(homeId: string, awayId: string, innings: number) {
-  const h = teamStrength(teamById(homeId));
-  const a = teamStrength(teamById(awayId));
-  const scale = innings / 9;
-  const base = 4.6 * scale;
-  const hMean = Math.max(0.4, base * (1 + (h.off - a.def) * 0.055) * 1.06);
-  const aMean = Math.max(0.4, base * (1 + (a.off - h.def) * 0.055));
-  let hs = poisson(hMean);
-  let as = poisson(aMean);
-  return { hs, as };
+/** 타석 단위 시뮬레이션 — 선수별 기록은 context.onGame으로 전달 */
+export function simGame(homeId: string, awayId: string, innings: number, context?: SimulationContext, decided = false) {
+  void poisson;
+  const team = context?.team ?? teamById;
+  const g = simulateMatch(team(homeId), team(awayId), innings, {
+    homeStarter: context?.starter?.(homeId), awayStarter: context?.starter?.(awayId), decided,
+  });
+  context?.onGame?.(homeId, awayId, g);
+  return { hs: g.hs, as: g.as };
 }
 
 /** 무승부 없이 승부를 가려야 하는 포스트시즌용 */
-export function simGameDecided(homeId: string, awayId: string, innings: number) {
-  let r = simGame(homeId, awayId, innings);
-  let guard = 0;
-  while (r.hs === r.as && guard++ < 30) {
-    const extra = simGame(homeId, awayId, 3);
-    r = { hs: r.hs + extra.hs, as: r.as + extra.as };
-  }
-  if (r.hs === r.as) r.hs += 1;
-  return r;
+export function simGameDecided(homeId: string, awayId: string, innings: number, context?: SimulationContext) {
+  return simGame(homeId, awayId, innings, context, true);
 }
 
 // ---------- 일정 (원형 라운드로빈) ----------
