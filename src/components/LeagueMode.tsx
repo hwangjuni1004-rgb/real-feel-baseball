@@ -3,7 +3,7 @@ import { TEAMS, POS_LABEL, batterValue, fieldingAt, fmtMoney, type Team, type Ba
 import {
   createLeague, simUntilUserGame, nextUserGame, recordUserGame, regularDone, simRestOfSeason,
   startPostseason, currentSeries, userInSeries, playSeriesGame, homeForGame, nextSeriesGameNo,
-  sortedStandings, gamesBehind, winPct, SERIES_LABEL, type LeagueState,
+  sortedStandings, gamesBehind, simGame, winPct, SERIES_LABEL, type LeagueState,
 } from "@/lib/league";
 import { createMarket, marketTick, teamWithRoster, type MarketState } from "@/lib/market";
 import { MarketTab, TeamsTab } from "./MarketTab";
@@ -12,14 +12,16 @@ import { Button } from "./ui/button";
 import { StaffTab } from "./StaffTab";
 import { createStaff, applyStaff, type StaffState } from "@/lib/staff";
 import { StatsTab } from "./StatsTab";
-import { mergeMatchStats, type MatchStats, type SeasonStats } from "@/lib/stats";
+import { mergeMatchStats, mergeGameStats, type MatchStats, type SeasonStats } from "@/lib/stats";
+import { createDraft, cpuPicksUntilUser, makePick, available, draftDone, onClock, applyDraft, type DraftState } from "@/lib/draft";
+import type { SimulationContext } from "@/lib/league";
 
 const KEY = "kbo-league-v1";
 const FIELD: Position[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 const teamById = (id: string) => TEAMS.find((t) => t.id === id)!;
 
 export type LineupSlot = { name: string; pos: Position };
-type Saved = { league: LeagueState; lineup: LineupSlot[]; market?: MarketState; staff?: StaffState; stats?: SeasonStats };
+type Saved = { league: LeagueState; lineup: LineupSlot[]; market?: MarketState; staff?: StaffState; stats?: SeasonStats; draft?: DraftState };
 
 export type MatchRender = (p: {
   userTeam: Team; cpuTeam: Team; innings: number; starterIdx: number;
@@ -89,6 +91,56 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const userTeam = applyStaff(applyLineup(user, lineup), staff);
   const update = (league: LeagueState, stats: SeasonStats | undefined = saved.stats) => setSaved({ ...saved, lineup, league, stats, market: marketTick(market, L.userTeamId) });
   const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
+  // 자동 진행 경기의 선수별 기록 누적
+  let simStats: SeasonStats = saved.stats ?? {};
+  const ctx: SimulationContext = {
+    team: (id) => applyStaff(id === L.userTeamId ? applyLineup(user, lineup) : teamWithRoster(teamById(id), market), staff),
+    starter: (id) => (id === L.userTeamId ? L.starterIdx : Math.floor(Math.random() * 5)),
+    onGame: (h, a, g) => { simStats = mergeGameStats(mergeGameStats(simStats, h, g.homeStats), a, g.awayStats); },
+  };
+
+  if (saved.draft) {
+    const d = saved.draft;
+    const finish = () => {
+      const { market: m } = applyDraft(market, d);
+      const nl = simUntilUserGame(createLeague(L.userTeamId, L.innings, 0, 1));
+      setSaved({ league: nl, lineup: defaultLineup(teamWithRoster(user, m)), market: m, staff, stats: {} });
+    };
+    const clock = onClock(d);
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-emerald-950 to-stone-950 text-white p-4">
+        <div className="max-w-4xl mx-auto space-y-3">
+          <h1 className="text-2xl font-black">🎓 신인 드래프트</h1>
+          <div className="text-xs text-white/60">전 시즌 순위 역순 지명 · {d.rounds}라운드 · 지명 순서: {d.order.map((id) => teamById(id).short).join(" → ")}</div>
+          {draftDone(d) ? (
+            <button onClick={finish} className="w-full py-3 rounded-lg bg-yellow-400 text-black font-black">드래프트 완료 · 새 시즌 시작 →</button>
+          ) : (
+            <div className="rounded-lg bg-yellow-400/15 border border-yellow-300/40 p-3 text-sm font-bold">
+              {Math.floor(d.picks.length / d.order.length) + 1}라운드 {(d.picks.length % d.order.length) + 1}순위 — {clock === L.userTeamId ? "우리 팀 차례! 선수를 고르세요" : teamById(clock!).short}
+            </div>
+          )}
+          {d.picks.length > 0 && (
+            <div className="text-xs space-y-0.5 max-h-40 overflow-y-auto">
+              {d.picks.map((k, i) => { const p = d.pool.find((x) => x.id === k.prospectId)!; return (
+                <div key={i} className={k.team === L.userTeamId ? "text-yellow-300 font-bold" : "text-white/70"}>{k.round}R {(i % d.order.length) + 1}순위 {teamById(k.team).short} — {(p.batter ?? p.pitcher)!.name}</div>
+              ); })}
+            </div>
+          )}
+          {!draftDone(d) && (
+            <div className="space-y-1">
+              {available(d).map((p) => (
+                <button key={p.id} onClick={() => setSaved({ ...saved, draft: cpuPicksUntilUser(makePick(d, p.id), L.userTeamId) })}
+                  className="w-full flex justify-between items-center text-left text-sm px-3 py-2 rounded bg-white/5 border border-white/10">
+                  <span className="font-bold">{(p.batter ?? p.pitcher)!.name} <span className="text-xs text-white/50">{p.batter ? POS_LABEL[p.batter.pos] : `투수(${p.pitcher!.throws === "L" ? "좌" : "우"})`}</span></span>
+                  <span className="text-xs text-white/60">{p.batter ? `정${p.batter.contact} 파${p.batter.power} 수${p.batter.defense} 주${p.batter.speed}` : `${p.pitcher!.velo}km 제${p.pitcher!.control}`} · <span className="text-yellow-200">{fmtMoney(p.value)}</span></span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // 다음 상대
   let oppId: string | null = null;
@@ -107,15 +159,15 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
     return <>{renderMatch({
       userTeam, cpuTeam: applyStaff(teamWithRoster(teamById(oppId), market), staff), innings: L.innings, starterIdx: L.starterIdx,
       onFinish: (u, c, gameStats) => {
-        const stats = mergeMatchStats(saved.stats, L.userTeamId, oppId, gameStats);
+        simStats = mergeMatchStats(saved.stats, L.userTeamId, oppId, gameStats);
         setPlaying(false);
         if (L.stage === "regular") {
-          let n = simUntilUserGame(recordUserGame(L, u, c));
+          let n = simUntilUserGame(recordUserGame(L, u, c), ctx);
           if (regularDone(n)) n = startPostseason(n);
           const nextStarter = (L.starterIdx + 1) % Math.max(1, Math.min(5, user.rotation.length));
-          update({ ...n, starterIdx: nextStarter }, stats);
+          update({ ...n, starterIdx: nextStarter }, simStats);
         } else {
-          update(playSeriesGame(L, { userScore: u, oppScore: c }), stats);
+          update(playSeriesGame(L, { userScore: u, oppScore: c }, ctx), simStats);
         }
       },
     })}</>;
@@ -123,9 +175,9 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
 
   const autoSim = () => {
     if (L.stage === "regular") {
-      let n = simRestOfSeason(L);
+      let n = simRestOfSeason(L, ctx);
       n = startPostseason(n);
-      update(n);
+      update(n, simStats);
     }
   };
   const simUser = () => {
@@ -133,18 +185,13 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
       const g = nextUserGame(L);
       if (!g) return;
       // 유저 경기 자동 시뮬
-      let n = simUntilUserGame(L);
-      const ids = TEAMS.map((t) => t.id);
-      void ids;
-      const r = Math.random();
-      const us = Math.floor(Math.random() * 7);
-      const them = Math.floor(Math.random() * 7);
-      void r;
-      n = simUntilUserGame(recordUserGame(n, us, them));
+      const r = simGame(g.home, g.away, L.innings, ctx);
+      const userHome = g.home === L.userTeamId;
+      let n = simUntilUserGame(recordUserGame(L, userHome ? r.hs : r.as, userHome ? r.as : r.hs), ctx);
       if (regularDone(n)) n = startPostseason(n);
-      update(n);
+      update(n, simStats);
     } else if (series) {
-      update(playSeriesGame(L));
+      update(playSeriesGame(L, undefined, ctx), simStats);
     }
   };
 
@@ -178,7 +225,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
               <div className="rounded-xl bg-yellow-400/15 border border-yellow-300/40 p-6 text-center">
                 <div className="text-5xl mb-2">🏆</div>
                 <div className="text-xl font-black">{teamById(L.champion!).name} 한국시리즈 우승!</div>
-                <button onClick={() => { if (confirm("새 시즌을 시작할까요?")) setSaved(null); }} className="mt-4 px-5 py-2 rounded bg-yellow-400 text-black font-bold">새 시즌</button>
+                <button onClick={() => setSaved({ ...saved, lineup, draft: cpuPicksUntilUser(createDraft(rank), L.userTeamId) })} className="mt-4 px-5 py-2 rounded bg-yellow-400 text-black font-bold">신인 드래프트 → 새 시즌</button>
               </div>
             ) : oppId ? (
               <div className="rounded-xl bg-white/5 border border-white/10 p-5">
