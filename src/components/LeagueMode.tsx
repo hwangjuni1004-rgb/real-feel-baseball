@@ -159,15 +159,15 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
     return <>{renderMatch({
       userTeam, cpuTeam: applyStaff(teamWithRoster(teamById(oppId), market), staff), innings: L.innings, starterIdx: L.starterIdx,
       onFinish: (u, c, gameStats) => {
-        const stats = mergeMatchStats(saved.stats, L.userTeamId, oppId, gameStats);
+        simStats = mergeMatchStats(saved.stats, L.userTeamId, oppId, gameStats);
         setPlaying(false);
         if (L.stage === "regular") {
           let n = simUntilUserGame(recordUserGame(L, u, c), ctx);
           if (regularDone(n)) n = startPostseason(n);
           const nextStarter = (L.starterIdx + 1) % Math.max(1, Math.min(5, user.rotation.length));
-          update({ ...n, starterIdx: nextStarter }, stats);
+          update({ ...n, starterIdx: nextStarter }, simStats);
         } else {
-          update(playSeriesGame(L, { userScore: u, oppScore: c }, ctx), stats);
+          update(playSeriesGame(L, { userScore: u, oppScore: c }, ctx), simStats);
         }
       },
     })}</>;
