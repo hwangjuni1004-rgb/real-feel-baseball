@@ -18,7 +18,10 @@ export type Listing = {
 export type MarketState = {
   gameNo: number;
   money: Record<string, number>;
+  /** 1군 로스터 — 경기·이적·트레이드 대상 */
   rosters: Record<string, Roster>;
+  /** 2군 (farm 도메인에서 관리, 예전 저장에는 없음) */
+  farm?: Record<string, { batters: { player: Batter; since: number }[]; pitchers: { player: Pitcher; since: number }[] }>;
   listings: Listing[];
   news: string[];
 };
