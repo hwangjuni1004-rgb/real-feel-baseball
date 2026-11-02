@@ -114,9 +114,12 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
   // 자동 진행 경기의 선수별 기록 누적
   let simStats: SeasonStats = saved.stats ?? {};
+  const rotationSize = Math.max(1, Math.min(5, user.rotation.length));
+  let userStarts = L.starterIdx;
   const ctx: SimulationContext = {
     team: (id) => applyStaff(id === L.userTeamId ? applyLineup(user, lineup) : teamWithRoster(teamById(id), market), staff),
-    starter: (id) => (id === L.userTeamId ? L.starterIdx : Math.floor(Math.random() * 5)),
+    // 우리 팀 자동 경기도 5선발 로테이션을 돈다
+    starter: (id) => (id === L.userTeamId ? (userStarts++ % rotationSize) : Math.floor(Math.random() * 5)),
     onGame: (h, a, g) => { simStats = mergeGameStats(mergeGameStats(simStats, h, g.homeStats), a, g.awayStats); },
   };
 
@@ -210,7 +213,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
       const userHome = g.home === L.userTeamId;
       let n = simUntilUserGame(recordUserGame(L, userHome ? r.hs : r.as, userHome ? r.as : r.hs), ctx);
       if (regularDone(n)) n = startPostseason(n);
-      update(n, simStats);
+      update({ ...n, starterIdx: userStarts % rotationSize }, simStats);
     } else if (series) {
       update(playSeriesGame(L, undefined, ctx), simStats);
     }
