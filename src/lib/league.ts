@@ -49,6 +49,8 @@ export type LeagueState = {
   userTeamId: string;
   innings: number;
   starterIdx: number;
+  /** 라운드로빈 반복 횟수 (1회 = 팀당 9경기). 예전 저장은 없을 수 있음 */
+  cycles?: number;
   schedule: ScheduleGame[];
   cursor: number; // 다음에 치를 경기 index (schedule 상)
   standings: Record<string, Standing>;
@@ -57,6 +59,14 @@ export type LeagueState = {
   champion?: string;
   news: string[];
 };
+
+/** 시즌 길이 선택지 — 팀당 경기 수 = 9 × cycles (144경기 = 실제 KBO) */
+export const SEASON_OPTIONS = [
+  { cycles: 1, games: 9, label: "9경기 (짧게)" },
+  { cycles: 4, games: 36, label: "36경기" },
+  { cycles: 8, games: 72, label: "72경기 (반 시즌)" },
+  { cycles: 16, games: 144, label: "144경기 (실제 KBO)" },
+] as const;
 
 export const SERIES_LABEL: Record<SeriesKind, string> = {
   WC: "와일드카드 결정전",
@@ -153,6 +163,7 @@ export function createLeague(userTeamId: string, innings: number, starterIdx: nu
     userTeamId,
     innings,
     starterIdx,
+    cycles,
     schedule,
     cursor: 0,
     standings,

@@ -14,7 +14,27 @@ import { createStaff, applyStaff, type StaffState } from "@/lib/staff";
 import { StatsTab } from "./StatsTab";
 import { mergeMatchStats, mergeGameStats, type MatchStats, type SeasonStats } from "@/lib/stats";
 import { createDraft, cpuPicksUntilUser, makePick, available, draftDone, onClock, applyDraft, type DraftState } from "@/lib/draft";
-import type { SimulationContext } from "@/lib/league";
+import { SEASON_OPTIONS, type SimulationContext } from "@/lib/league";
+import { seasonAwards, settleSeason } from "@/lib/awards";
+import { useCloudSave } from "@/hooks/use-cloud-save";
+
+type Cloud = ReturnType<typeof useCloudSave>;
+function CloudBar({ cloud }: { cloud: Cloud }) {
+  if (!cloud.user) {
+    return (
+      <button onClick={cloud.signIn} className="text-[11px] px-2 py-1 rounded bg-white text-stone-900 font-bold shrink-0">
+        G 구글로 저장
+      </button>
+    );
+  }
+  const label = cloud.status === "syncing" ? "저장 중…" : cloud.status === "error" ? "저장 실패" : "구글 계정에 저장됨";
+  return (
+    <div className="text-right shrink-0">
+      <div className={`text-[10px] ${cloud.status === "error" ? "text-rose-300" : "text-emerald-300"}`}>☁ {label}</div>
+      <button onClick={cloud.signOut} className="text-[10px] text-white/50 underline">{cloud.user.email ?? "로그아웃"} · 로그아웃</button>
+    </div>
+  );
+}
 
 const KEY = "kbo-league-v1";
 const FIELD: Position[] = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
@@ -76,10 +96,11 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
     if (saved) localStorage.setItem(KEY, JSON.stringify(saved));
     else localStorage.removeItem(KEY);
   }, [saved, loaded]);
+  const cloud = useCloudSave<Saved>(saved, loaded, (d) => setSaved(d));
 
   if (!loaded) return null;
-  if (!saved) return <LeagueSetup onExit={onExit} onCreate={(t, inn) => {
-    const L = simUntilUserGame(createLeague(t.id, inn, 0, 1));
+  if (!saved) return <LeagueSetup onExit={onExit} cloud={cloud} onCreate={(t, inn, cycles) => {
+    const L = simUntilUserGame(createLeague(t.id, inn, 0, cycles));
     setSaved({ league: L, lineup: defaultLineup(t), market: createMarket(t.id), staff: createStaff(), stats: {} });
   }} />;
 
@@ -93,9 +114,12 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
   // 자동 진행 경기의 선수별 기록 누적
   let simStats: SeasonStats = saved.stats ?? {};
+  const rotationSize = Math.max(1, Math.min(5, user.rotation.length));
+  let userStarts = L.starterIdx;
   const ctx: SimulationContext = {
     team: (id) => applyStaff(id === L.userTeamId ? applyLineup(user, lineup) : teamWithRoster(teamById(id), market), staff),
-    starter: (id) => (id === L.userTeamId ? L.starterIdx : Math.floor(Math.random() * 5)),
+    // 우리 팀 자동 경기도 5선발 로테이션을 돈다
+    starter: (id) => (id === L.userTeamId ? (userStarts++ % rotationSize) : Math.floor(Math.random() * 5)),
     onGame: (h, a, g) => { simStats = mergeGameStats(mergeGameStats(simStats, h, g.homeStats), a, g.awayStats); },
   };
 
@@ -103,7 +127,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
     const d = saved.draft;
     const finish = () => {
       const { market: m } = applyDraft(market, d);
-      const nl = simUntilUserGame(createLeague(L.userTeamId, L.innings, 0, 1));
+      const nl = simUntilUserGame(createLeague(L.userTeamId, L.innings, 0, L.cycles ?? 1));
       setSaved({ league: nl, lineup: defaultLineup(teamWithRoster(user, m)), market: m, staff, stats: {} });
     };
     const clock = onClock(d);
@@ -189,7 +213,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
       const userHome = g.home === L.userTeamId;
       let n = simUntilUserGame(recordUserGame(L, userHome ? r.hs : r.as, userHome ? r.as : r.hs), ctx);
       if (regularDone(n)) n = startPostseason(n);
-      update(n, simStats);
+      update({ ...n, starterIdx: userStarts % rotationSize }, simStats);
     } else if (series) {
       update(playSeriesGame(L, undefined, ctx), simStats);
     }
@@ -205,11 +229,12 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
         <div className="max-w-4xl mx-auto flex items-center gap-3">
           <button onClick={onExit} className="text-xs px-2 py-1 rounded bg-white/10">← 메뉴</button>
           <div className="w-3 h-8 rounded" style={{ background: user.color }} />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="font-black">{user.name}</div>
             <div className="text-[11px] text-yellow-200">자금 {(market.money[L.userTeamId] ?? 0).toLocaleString()}만$</div>
-            <div className="text-[11px] text-white/60">{my.w}승 {my.l}패 {my.d}무 · {myRank}위 · {L.stage === "regular" ? "정규시즌" : L.stage === "post" ? "포스트시즌" : "시즌 종료"}</div>
+            <div className="text-[11px] text-white/60">{my.w}승 {my.l}패 {my.d}무 · {myRank}위 · {L.stage === "regular" ? `정규시즌 (팀당 ${9 * (L.cycles ?? 1)}경기)` : L.stage === "post" ? "포스트시즌" : "시즌 종료"}</div>
           </div>
+          <CloudBar cloud={cloud} />
         </div>
         <div className="max-w-4xl mx-auto flex gap-1 mt-3 overflow-x-auto">
           {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["trade", "트레이드"], ["staff", "코치진"], ["teams", "타팀 로스터"], ["stats", "기록"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
@@ -225,7 +250,12 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
               <div className="rounded-xl bg-yellow-400/15 border border-yellow-300/40 p-6 text-center">
                 <div className="text-5xl mb-2">🏆</div>
                 <div className="text-xl font-black">{teamById(L.champion!).name} 한국시리즈 우승!</div>
-                <button onClick={() => setSaved({ ...saved, lineup, draft: cpuPicksUntilUser(createDraft(rank), L.userTeamId) })} className="mt-4 px-5 py-2 rounded bg-yellow-400 text-black font-bold">신인 드래프트 → 새 시즌</button>
+                <SeasonAwardsPreview stats={saved.stats ?? {}} />
+                <button onClick={() => {
+                  const awards = seasonAwards(saved.stats ?? {});
+                  const s = settleSeason(market.money, rank.map((r) => r.id), L.champion, awards, (id) => teamById(id).short);
+                  setSaved({ ...saved, lineup, market: { ...market, money: s.money, news: [...s.news, ...market.news].slice(0, 60) }, draft: cpuPicksUntilUser(createDraft(rank), L.userTeamId) });
+                }} className="mt-4 px-5 py-2 rounded bg-yellow-400 text-black font-bold">상금 정산 · 신인 드래프트 → 새 시즌</button>
               </div>
             ) : oppId ? (
               <div className="rounded-xl bg-white/5 border border-white/10 p-5">
@@ -312,13 +342,34 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   );
 }
 
-function LeagueSetup({ onExit, onCreate }: { onExit: () => void; onCreate: (t: Team, innings: number) => void }) {
+function SeasonAwardsPreview({ stats }: { stats: SeasonStats }) {
+  const awards = seasonAwards(stats);
+  if (awards.length === 0) return null;
+  return (
+    <div className="mt-4 text-left text-sm space-y-1">
+      <div className="text-xs text-white/60">시즌 시상 (상금 각 500만$)</div>
+      {awards.map((a) => (
+        <div key={a.title} className="flex justify-between gap-2 px-3 py-1.5 rounded bg-black/30">
+          <span className="font-bold text-yellow-200">{a.title}</span>
+          <span className="truncate">{a.name} <span className="text-white/50">({teamById(a.team).short}) {a.detail}</span></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LeagueSetup({ onExit, onCreate, cloud }: { onExit: () => void; onCreate: (t: Team, innings: number, cycles: number) => void; cloud: Cloud }) {
   const [team, setTeam] = useState<Team | null>(null);
   const [inn, setInn] = useState(3);
+  const [cycles, setCycles] = useState<number>(4);
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-950 to-stone-950 text-white px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <button onClick={onExit} className="text-xs px-3 py-1.5 rounded bg-white/10 mb-4">← 메뉴</button>
+        <div className="flex justify-between items-start mb-4">
+          <button onClick={onExit} className="text-xs px-3 py-1.5 rounded bg-white/10">← 메뉴</button>
+          <CloudBar cloud={cloud} />
+        </div>
+        {!cloud.user && <p className="text-[11px] text-white/50 mb-3">구글로 로그인하면 리그 진행이 계정에 저장되어 다른 기기에서도 이어서 할 수 있습니다.</p>}
         <h1 className="text-3xl font-black mb-1">리그 모드</h1>
         <p className="text-sm text-white/60 mb-6">구단을 고르세요. 10개 구단 라운드로빈 후 상위 5팀이 가을야구에 진출합니다.</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -336,7 +387,15 @@ function LeagueSetup({ onExit, onCreate }: { onExit: () => void; onCreate: (t: T
             <button key={n} onClick={() => setInn(n)} className={`px-4 py-2 rounded text-sm font-bold ${inn === n ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{n}이닝</button>
           ))}
         </div>
-        <button disabled={!team} onClick={() => team && onCreate(team, inn)} className="mt-6 px-8 py-3 rounded-lg bg-yellow-400 text-black font-black disabled:opacity-40">시즌 시작 →</button>
+        <div className="mt-4">
+          <span className="text-xs text-white/60">시즌 길이 (팀당 경기 수)</span>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {SEASON_OPTIONS.map((o) => (
+              <button key={o.cycles} onClick={() => setCycles(o.cycles)} className={`px-3 py-2 rounded text-sm font-bold ${cycles === o.cycles ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+        <button disabled={!team} onClick={() => team && onCreate(team, inn, cycles)} className="mt-6 px-8 py-3 rounded-lg bg-yellow-400 text-black font-black disabled:opacity-40">시즌 시작 →</button>
       </div>
     </div>
   );
