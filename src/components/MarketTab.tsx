@@ -22,8 +22,8 @@ function useScouting(market: MarketState, user: string) {
   const targets = market.listings.filter((l) => !l.userListed);
   const missing = targets.filter((l) => !reports[l.id] && !asked.current.has(l.id));
   const fetchMissing = async (force = false) => {
-    const list = force ? targets.filter((l) => !reports[l.id]) : missing;
-    if (!list.length || loading) return;
+    const list = targets.filter((l) => !reports[l.id] && (force || !asked.current.has(l.id)));
+    if (!list.length) return;
     list.forEach((l) => asked.current.add(l.id));
     setLoading(true); setError(null);
     const players: ScoutPlayer[] = list.map((l) => ({
