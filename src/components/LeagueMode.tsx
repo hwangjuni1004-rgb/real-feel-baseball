@@ -8,6 +8,8 @@ import {
 import { createMarket, marketTick, teamWithRoster, type MarketState } from "@/lib/market";
 import { MarketTab, TeamsTab } from "./MarketTab";
 import { TradeTab } from "./TradeTab";
+import { FarmTab } from "./FarmTab";
+import { enforceLimits, farmTick } from "@/lib/farm";
 import { Button } from "./ui/button";
 import { StaffTab } from "./StaffTab";
 import { createStaff, applyStaff, type StaffState } from "@/lib/staff";
@@ -85,7 +87,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const [saved, setSaved] = useState<Saved | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [tab, setTab] = useState<"home" | "lineup" | "market" | "trade" | "staff" | "teams" | "stats" | "standings" | "news">("home");
+  const [tab, setTab] = useState<"home" | "lineup" | "farm" | "market" | "trade" | "staff" | "teams" | "stats" | "standings" | "news">("home");
 
   useEffect(() => {
     try { const s = localStorage.getItem(KEY); if (s) setSaved(JSON.parse(s)); } catch { /* ignore */ }
@@ -101,7 +103,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   if (!loaded) return null;
   if (!saved) return <LeagueSetup onExit={onExit} cloud={cloud} onCreate={(t, inn, cycles) => {
     const L = simUntilUserGame(createLeague(t.id, inn, 0, cycles));
-    setSaved({ league: L, lineup: defaultLineup(t), market: createMarket(t.id), staff: createStaff(), stats: {} });
+    setSaved({ league: L, lineup: defaultLineup(t), market: enforceLimits(createMarket(t.id), t.id), staff: createStaff(), stats: {} });
   }} />;
 
   const L = saved.league;
@@ -110,7 +112,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   const user = teamWithRoster(teamById(L.userTeamId), market);
   const lineup = repairLineup(user, saved.lineup);
   const userTeam = applyStaff(applyLineup(user, lineup), staff);
-  const update = (league: LeagueState, stats: SeasonStats | undefined = saved.stats) => setSaved({ ...saved, lineup, league, stats, market: marketTick(market, L.userTeamId) });
+  const update = (league: LeagueState, stats: SeasonStats | undefined = saved.stats) => setSaved({ ...saved, lineup, league, stats, market: farmTick(marketTick(market, L.userTeamId), L.userTeamId, lineup.map((s) => s.name)) });
   const setMarket = (m: MarketState) => setSaved({ ...saved, lineup, market: m });
   // 자동 진행 경기의 선수별 기록 누적
   let simStats: SeasonStats = saved.stats ?? {};
@@ -126,7 +128,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
   if (saved.draft) {
     const d = saved.draft;
     const finish = () => {
-      const { market: m } = applyDraft(market, d);
+      const m = enforceLimits(applyDraft(market, d).market, L.userTeamId);
       const nl = simUntilUserGame(createLeague(L.userTeamId, L.innings, 0, L.cycles ?? 1));
       setSaved({ league: nl, lineup: defaultLineup(teamWithRoster(user, m)), market: m, staff, stats: {} });
     };
@@ -237,7 +239,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
           <CloudBar cloud={cloud} />
         </div>
         <div className="max-w-4xl mx-auto flex gap-1 mt-3 overflow-x-auto">
-          {([["home", "경기"], ["lineup", "라인업"], ["market", "이적시장"], ["trade", "트레이드"], ["staff", "코치진"], ["teams", "타팀 로스터"], ["stats", "기록"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
+          {([["home", "경기"], ["lineup", "라인업"], ["farm", "1군·2군"], ["market", "이적시장"], ["trade", "트레이드"], ["staff", "코치진"], ["teams", "타팀 로스터"], ["stats", "기록"], ["standings", "순위"], ["news", "뉴스"]] as const).map(([k, v]) => (
             <Button key={k} variant="ghost" aria-pressed={tab === k} onClick={() => setTab(k)} className={`shrink-0 px-3 py-1.5 rounded text-sm font-bold ${tab === k ? "bg-yellow-400 text-black" : "bg-white/5"}`}>{v}</Button>
           ))}
         </div>
@@ -308,6 +310,7 @@ export function LeagueMode({ onExit, renderMatch }: { onExit: () => void; render
         {tab === "lineup" && (
           <LineupEditor team={user} slots={lineup} onChange={(lineup) => setSaved({ ...saved, lineup })} />
         )}
+        {tab === "farm" && <FarmTab market={market} user={L.userTeamId} starters={lineup.map((s) => s.name)} onChange={setMarket} />}
         {tab === "market" && <MarketTab market={market} user={L.userTeamId} onChange={setMarket} />}
         {tab === "trade" && <TradeTab market={market} user={L.userTeamId} onChange={setMarket} />}
         {tab === "staff" && <StaffTab market={market} staff={staff} user={L.userTeamId} onChange={(market, staff) => setSaved({ ...saved, lineup, market, staff })} />}
