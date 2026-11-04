@@ -30,7 +30,7 @@ function useScouting(market: MarketState, user: string) {
     list.forEach((l) => asked.current.add(l.id));
     setLoading(true); setError(null);
     const players: ScoutPlayer[] = list.map((l) => ({
-      id: l.id, name: listingName(l), from: listingTeam(l.from), value: l.value,
+      id: l.id, name: listingName(l), from: listingTeam(l.from), valueRange: valueRange(l.value).map((v) => `${v.toLocaleString()}만$`).join("~"),
       role: l.batter ? POS_LABEL[l.batter.pos] : "투수",
       hand: l.batter ? `${l.batter.bats}타` : `${l.pitcher!.throws}투`,
       stats: l.batter
