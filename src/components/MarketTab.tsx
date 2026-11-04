@@ -1,9 +1,57 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { scoutListings, type ScoutPlayer } from "@/lib/scouting.functions";
 import { TEAMS, POS_LABEL, batterValue, pitcherValue, fmtMoney } from "@/lib/kbo-data";
 import {
   placeBid, directOffer, listOwn, cancelListing, valueRange, listingName, listingTeam,
   type MarketState,
 } from "@/lib/market";
+
+const SCOUT_KEY = "kbo-scout-reports";
+function loadScout(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(SCOUT_KEY) || "{}"); } catch { return {}; }
+}
+
+function useScouting(market: MarketState, user: string) {
+  const run = useServerFn(scoutListings);
+  const [reports, setReports] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const asked = useRef(new Set<string>());
+  useEffect(() => { setReports(loadScout()); }, []);
+  const targets = market.listings.filter((l) => !l.userListed);
+  const missing = targets.filter((l) => !reports[l.id] && !asked.current.has(l.id));
+  const fetchMissing = async (force = false) => {
+    const list = force ? targets.filter((l) => !reports[l.id]) : missing;
+    if (!list.length || loading) return;
+    list.forEach((l) => asked.current.add(l.id));
+    setLoading(true); setError(null);
+    const players: ScoutPlayer[] = list.map((l) => ({
+      id: l.id, name: listingName(l), from: listingTeam(l.from), value: l.value,
+      role: l.batter ? POS_LABEL[l.batter.pos] : "투수",
+      hand: l.batter ? `${l.batter.bats}타` : `${l.pitcher!.throws}투`,
+      stats: l.batter
+        ? `파워${l.batter.power} 정확${l.batter.contact} 주력${l.batter.speed} 수비${l.batter.defense}`
+        : `최고구속${l.pitcher!.velo}km 제구${l.pitcher!.control} 구종:${l.pitcher!.pitches.map((x) => x.name).join("/")}`,
+    }));
+    try {
+      const res = await run({ data: { players } });
+      if (res.error) setError(res.error);
+      setReports((prev) => {
+        const live = new Set(market.listings.map((l) => l.id));
+        const next: Record<string, string> = {};
+        for (const [k, v] of Object.entries({ ...prev, ...res.reports })) if (live.has(k)) next[k] = v;
+        localStorage.setItem(SCOUT_KEY, JSON.stringify(next));
+        return next;
+      });
+    } catch {
+      setError("스카우팅 리포트를 불러오지 못했습니다.");
+    } finally { setLoading(false); }
+  };
+  const missingKey = missing.map((l) => l.id).join(",");
+  useEffect(() => { if (missingKey) void fetchMissing(); }, [missingKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { reports, loading, error, retry: () => fetchMissing(true) };
+}
 
 type P = { market: MarketState; user: string; onChange: (m: MarketState) => void };
 
@@ -22,9 +70,14 @@ function OfferBox({ onSubmit, init }: { onSubmit: (v: number) => void; init: num
 export function MarketTab({ market, user, onChange }: P) {
   const mine = market.rosters[user]!;
   const listedNames = new Set(market.listings.map(listingName));
+  const scout = useScouting(market, user);
   return (
     <div className="space-y-4">
       <div className="text-xs text-white/60">오퍼는 {3}경기 뒤 체결됩니다. 여러 팀이 원하면 금액이 높을수록 데려갈 확률이 큽니다.</div>
+      {scout.loading && <div className="text-[11px] text-sky-300">🔍 스카우터가 매물 리포트를 쓰는 중…</div>}
+      {scout.error && !scout.loading && (
+        <div className="text-[11px] text-rose-300">{scout.error} <button onClick={scout.retry} className="underline">다시 시도</button></div>
+      )}
       <div className="space-y-2">
         {market.listings.filter((l) => !l.userListed).map((l) => {
           const pl = (l.batter ?? l.pitcher)!;
@@ -39,6 +92,11 @@ export function MarketTab({ market, user, onChange }: P) {
               <div className="text-[11px] text-white/60">
                 {l.batter ? `정${l.batter.contact} 파${l.batter.power}` : `구속${l.pitcher!.velo} 제구${l.pitcher!.control}`} · 예상가치 {fmtMoney(lo)}~{fmtMoney(hi)} · 입찰 {l.bids.length}팀
               </div>
+              {scout.reports[l.id] && (
+                <div className="mt-1 text-[11px] leading-snug text-sky-100 bg-sky-400/10 border-l-2 border-sky-300/60 rounded px-2 py-1">
+                  <span className="font-bold text-sky-300">스카우팅</span> {scout.reports[l.id]}
+                </div>
+              )}
               {myBid && <div className="text-[11px] text-emerald-300">내 오퍼 {fmtMoney(myBid.amount)}</div>}
               {!l.direct && <OfferBox init={l.value} onSubmit={(v) => onChange(placeBid(market, user, l.id, v))} />}
             </div>
