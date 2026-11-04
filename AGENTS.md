@@ -16,3 +16,4 @@
 - Keep season-end prize money and title awards in the browser-safe awards domain module; the league screen applies the settlement once when the user starts the draft.
 - League saves stay in localStorage and, when the user signs in with Google, sync whole-save JSON to the per-user `league_saves` row (RLS owner-only) via the browser client hook; on sign-in the cloud copy wins if it exists.
 - Keep 1st/2nd-team (farm) limits, recall waits and farm growth in the browser-safe farm domain module; the league screen runs farmTick after each market tick so rosters used for matches only hold 1st-team players.
+- Market scouting reports come from one batched AI Gateway server function (scouting.functions.ts) that only receives visible stats and the shown value range, never exact hidden player values; reports are cached per listing in localStorage so each listing is requested once.
