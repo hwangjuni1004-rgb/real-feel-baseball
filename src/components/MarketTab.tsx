@@ -12,12 +12,15 @@ function loadScout(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(SCOUT_KEY) || "{}"); } catch { return {}; }
 }
 
+/** 이번 접속에서 이미 요청한 매물 (탭 재마운트 시 중복 요청 방지) */
+const ASKED = new Set<string>();
+
 function useScouting(market: MarketState, user: string) {
   const run = useServerFn(scoutListings);
   const [reports, setReports] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const asked = useRef(new Set<string>());
+  const asked = useRef(ASKED);
   useEffect(() => { setReports(loadScout()); }, []);
   const targets = market.listings.filter((l) => !l.userListed);
   const missing = targets.filter((l) => !reports[l.id] && !asked.current.has(l.id));
