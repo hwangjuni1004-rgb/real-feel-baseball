@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { scoutListings, type ScoutPlayer } from "@/lib/scouting.functions";
-import { TEAMS, POS_LABEL, batterValue, pitcherValue, fmtMoney } from "@/lib/kbo-data";
+import { TEAMS, POS_LABEL, batterValue, batterDefense, pitcherValue, fmtMoney } from "@/lib/kbo-data";
 import {
   placeBid, directOffer, listOwn, cancelListing, valueRange, listingName, listingTeam,
   type MarketState,
@@ -31,7 +31,7 @@ function useScouting(market: MarketState, user: string) {
       role: l.batter ? POS_LABEL[l.batter.pos] : "투수",
       hand: l.batter ? `${l.batter.bats}타` : `${l.pitcher!.throws}투`,
       stats: l.batter
-        ? `파워${l.batter.power} 정확${l.batter.contact} 주력${l.batter.speed} 수비${l.batter.defense}`
+        ? `파워${l.batter.power} 정확${l.batter.contact} 주력${l.batter.speed ?? 5} 수비${batterDefense(l.batter)}`
         : `최고구속${l.pitcher!.velo}km 제구${l.pitcher!.control} 구종:${l.pitcher!.pitches.map((x) => x.name).join("/")}`,
     }));
     try {
